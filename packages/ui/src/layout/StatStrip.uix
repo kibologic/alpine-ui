@@ -1,0 +1,38 @@
+import { SwissComponent } from '@swissjs/core';
+
+component StatStrip {
+  props = {
+    stats: Array as () => Array<{ 
+      label: string; 
+      value: string; 
+      delta?: string; 
+      deltaType?: 'positive' | 'negative' | 'neutral';
+      href?: string;
+    }>
+  };
+
+  render() {
+    const stats = Array.isArray(this.props.stats) ? this.props.stats : [];
+    
+    return (
+      <div class="aui-stat-strip">
+        {stats.map(stat => (
+          <div 
+            class={`aui-stat-card ${stat.href ? 'aui-stat-card--link' : ''}`} 
+            onclick={() => {
+              if (stat.href) window.location.hash = stat.href;
+            }}
+          >
+            <div class="aui-stat-label">{stat.label}</div>
+            <div class="aui-stat-value">{stat.value}</div>
+            {stat.delta ? (
+              <div class={`aui-stat-delta aui-stat-delta--${stat.deltaType || 'neutral'}`}>
+                {stat.delta}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
+  }
+}

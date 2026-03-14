@@ -1,11 +1,14 @@
 // Layout
 export { default as PageHeader } from './layout/PageHeader.uix';
 export { default as Section } from './layout/Section.uix';
+export { default as StatStrip } from './layout/StatStrip.uix';
+export { default as Tabs } from './layout/Tabs.uix';
 
 // Feedback
 export { default as EmptyState } from './feedback/EmptyState.uix';
 export { default as Modal } from './feedback/Modal.uix';
 export { default as Toast } from './feedback/Toast.uix';
+export { default as SidePanel } from './feedback/SidePanel.uix';
 
 // Form
 export { default as TextField } from './form/TextField.uix';
