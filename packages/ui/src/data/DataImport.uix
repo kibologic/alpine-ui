@@ -1,6 +1,6 @@
 import { SwissComponent } from '@swissjs/core';
-import Modal from '../feedback/Modal.uix';
-import DataTable from './DataTable.ui';
+import { Modal } from '../feedback/Modal.uix';
+import { DataTable } from './DataTable.uix';
 
 component DataImport {
   props = {

@@ -1,5 +1,5 @@
 import { SwissComponent } from '@swissjs/core';
-import TextField from './TextField.ui';
+import { TextField } from './TextField.uix';
 
 component CurrencyField {
   props = {
@@ -13,29 +13,29 @@ component CurrencyField {
   };
 
   state { let displayValue: string = ''; }
-  state { let numericValue: number | null = null; }
+  state { let isFocused: boolean = false; }
 
   mount {
-    this.numericValue = typeof this.props.value === 'number' ? this.props.value : null;
-    this.displayValue = this.formatCurrency(this.numericValue);
+    const raw = typeof this.props.value === 'number' ? this.props.value : null;
+    this.displayValue = raw !== null && !isNaN(raw) ? this.formatCurrency(raw) : '';
   }
 
-  formatCurrency(val: number | null): string {
-    if (val === null || isNaN(val)) return '';
+  formatCurrency(val: number): string {
     return new Intl.NumberFormat('en-MW', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(val);
   }
 
   parseCurrency(val: string): number | null {
     if (!val) return null;
-    const clean = val.replace(/,/g, '');
+    const clean = val.replace(/,/g, '').trim();
     const num = parseFloat(clean);
     return isNaN(num) ? null : num;
   }
 
   handleChange(val: string) {
+    // While typing — store raw string, notify parent
     this.displayValue = val;
     this.scheduleUpdate?.();
     const num = this.parseCurrency(val);
@@ -43,17 +43,20 @@ component CurrencyField {
   }
 
   handleFocus() {
-    // Strip formatting on focus
-    if (this.numericValue !== null) {
-      this.displayValue = this.numericValue.toString();
-      this.scheduleUpdate?.();
+    this.isFocused = true;
+    // Strip formatting on focus so user can type raw numbers
+    const num = this.parseCurrency(this.displayValue);
+    if (num !== null) {
+      this.displayValue = String(num);
     }
+    this.scheduleUpdate?.();
   }
 
   handleBlur() {
+    this.isFocused = false;
     // Re-format on blur
-    this.numericValue = this.parseCurrency(this.displayValue);
-    this.displayValue = this.formatCurrency(this.numericValue);
+    const num = this.parseCurrency(this.displayValue);
+    this.displayValue = num !== null ? this.formatCurrency(num) : '';
     this.scheduleUpdate?.();
   }
 

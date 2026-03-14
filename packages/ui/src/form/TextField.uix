@@ -49,37 +49,39 @@ component TextField {
     const hasPrefix = !!this.props.prefix;
     const hasSuffix = !!this.props.suffix;
     const isRequired = !!this.props.required;
+    // Use props.value as source of truth when controlled externally (e.g. CurrencyField resetting)
+    const displayVal = this.props.value !== undefined && this.props.value !== null ? this.props.value : this.internalValue;
 
     return (
       <div class={`aui-field${isDisabled ? ' aui-field--disabled' : ''}${hasError ? ' aui-field--error' : ''}`}>
         {this.props.label ? (
           <label class="aui-label">
             {this.props.label}
-            {isRequired ? <span style="color: var(--ink-black); margin-left: 2px;">*</span> : null}
+            {isRequired ? <span style="color: #c0392b; margin-left: 2px;">*</span> : null}
           </label>
         ) : null}
-        
-        <div class="aui-input-wrap">
+
+        <div class={`aui-input-wrap${this.isFocused ? ' aui-input-wrap--focused' : ''}`}>
           {hasPrefix ? (
             <span class="aui-input-prefix">{this.props.prefix}</span>
           ) : null}
-          
+
           <input
             type={type}
             class={`aui-input${hasError ? ' aui-input--error' : ''}`}
             placeholder={this.props.placeholder || ''}
-            value={this.internalValue}
+            value={displayVal}
             disabled={isDisabled}
             oninput={(e: Event) => this.handleInput(e)}
             onfocus={(e: Event) => this.handleFocus(e)}
             onblur={(e: Event) => this.handleBlur(e)}
           />
-          
+
           {hasSuffix ? (
             <span class="aui-input-suffix">{this.props.suffix}</span>
           ) : null}
         </div>
-        
+
         {hasError ? (
           <span class="aui-error-msg">{this.props.error}</span>
         ) : null}

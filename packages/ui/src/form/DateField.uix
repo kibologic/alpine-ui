@@ -1,10 +1,10 @@
 import { SwissComponent } from '@swissjs/core';
-import TextField from './TextField.ui';
+import { TextField } from './TextField.uix';
 
 component DateField {
   props = {
     label: String,
-    value: String, // format: YYYY-MM-DD
+    value: String, // expects YYYY-MM-DD (HTML date input native format)
     placeholder: String,
     required: Boolean,
     error: String,
@@ -12,15 +12,7 @@ component DateField {
     onchange: Function as (value: string) => void,
   };
 
-  state { let internalValue: string = ''; }
-
-  mount {
-    this.internalValue = this.props.value || '';
-  }
-
   handleChange(val: string) {
-    this.internalValue = val;
-    this.scheduleUpdate?.();
     if (this.props.onchange) this.props.onchange(val);
   }
 
@@ -28,8 +20,8 @@ component DateField {
     return (
       <TextField
         label={this.props.label}
-        value={this.internalValue}
-        placeholder={this.props.placeholder || 'DD/MM/YYYY'}
+        value={this.props.value || ''}
+        placeholder={this.props.placeholder || ''}
         type="date"
         required={!!this.props.required}
         error={this.props.error}

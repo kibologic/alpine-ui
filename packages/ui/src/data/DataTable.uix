@@ -1,6 +1,6 @@
 import { SwissComponent } from '@swissjs/core';
-import EmptyState from '../feedback/EmptyState.ui';
-import DataExport from './DataExport.ui';
+import { EmptyState } from '../feedback/EmptyState.uix';
+import { DataExport } from './DataExport.uix';
 
 component DataTable {
   props = {
