@@ -1,0 +1,37 @@
+import { SwissComponent } from '@swissjs/core';
+
+component FormGroup {
+  props = {
+    label: String,
+    required: Boolean,
+    error: String,
+    helperText: String,
+    renderField: Function as () => any, // Used as slot wrapper
+  };
+
+  render() {
+    const isRequired = !!this.props.required;
+    const hasError = !!this.props.error;
+
+    return (
+      <div class={`aui-field${hasError ? ' aui-field--error' : ''}`}>
+        {this.props.label ? (
+          <label class="aui-label">
+            {this.props.label}
+            {isRequired ? <span style="color: var(--ink-black); margin-left: 2px;">*</span> : null}
+          </label>
+        ) : null}
+        
+        {this.props.renderField ? this.props.renderField() : null}
+        
+        {hasError ? (
+          <span class="aui-error-msg">{this.props.error}</span>
+        ) : this.props.helperText ? (
+          <span style="font-size: 0.75rem; color: var(--dusty-denim); margin-top: 0.25rem;">
+            {this.props.helperText}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+}

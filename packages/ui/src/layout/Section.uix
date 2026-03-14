@@ -1,0 +1,23 @@
+import { SwissComponent } from '@swissjs/core';
+
+component Section {
+  props = {
+    title: String,
+    renderBody: Function as () => any,
+  };
+
+  render() {
+    return (
+      <section class="aui-section">
+        {this.props.title ? (
+          <div class="aui-section-header">
+            {this.props.title}
+          </div>
+        ) : null}
+        <div class="aui-section-body">
+          {this.props.renderBody ? this.props.renderBody() : null}
+        </div>
+      </section>
+    );
+  }
+}

@@ -1,0 +1,89 @@
+import { SwissComponent } from '@swissjs/core';
+
+component TextField {
+  props = {
+    label: String,
+    value: String,
+    placeholder: String,
+    type: String,
+    required: Boolean,
+    error: String,
+    disabled: Boolean,
+    prefix: String,
+    suffix: String,
+    onchange: Function as (value: string) => void,
+    onblur: Function as (e: Event) => void,
+    onfocus: Function as (e: Event) => void,
+  };
+
+  state { let internalValue: string = ''; }
+  state { let isFocused: boolean = false; }
+
+  mount {
+    this.internalValue = this.props.value || '';
+  }
+
+  handleInput(e: Event) {
+    const val = (e.target as HTMLInputElement).value;
+    this.internalValue = val;
+    this.scheduleUpdate?.();
+    if (this.props.onchange) this.props.onchange(val);
+  }
+
+  handleFocus(e: Event) {
+    this.isFocused = true;
+    this.scheduleUpdate?.();
+    if (this.props.onfocus) this.props.onfocus(e);
+  }
+
+  handleBlur(e: Event) {
+    this.isFocused = false;
+    this.scheduleUpdate?.();
+    if (this.props.onblur) this.props.onblur(e);
+  }
+
+  render() {
+    const type = this.props.type || 'text';
+    const isDisabled = !!this.props.disabled;
+    const hasError = !!this.props.error;
+    const hasPrefix = !!this.props.prefix;
+    const hasSuffix = !!this.props.suffix;
+    const isRequired = !!this.props.required;
+
+    return (
+      <div class={`aui-field${isDisabled ? ' aui-field--disabled' : ''}${hasError ? ' aui-field--error' : ''}`}>
+        {this.props.label ? (
+          <label class="aui-label">
+            {this.props.label}
+            {isRequired ? <span style="color: var(--ink-black); margin-left: 2px;">*</span> : null}
+          </label>
+        ) : null}
+        
+        <div class="aui-input-wrap">
+          {hasPrefix ? (
+            <span class="aui-input-prefix">{this.props.prefix}</span>
+          ) : null}
+          
+          <input
+            type={type}
+            class={`aui-input${hasError ? ' aui-input--error' : ''}`}
+            placeholder={this.props.placeholder || ''}
+            value={this.internalValue}
+            disabled={isDisabled}
+            oninput={(e: Event) => this.handleInput(e)}
+            onfocus={(e: Event) => this.handleFocus(e)}
+            onblur={(e: Event) => this.handleBlur(e)}
+          />
+          
+          {hasSuffix ? (
+            <span class="aui-input-suffix">{this.props.suffix}</span>
+          ) : null}
+        </div>
+        
+        {hasError ? (
+          <span class="aui-error-msg">{this.props.error}</span>
+        ) : null}
+      </div>
+    );
+  }
+}

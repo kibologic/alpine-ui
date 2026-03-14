@@ -1,0 +1,55 @@
+import { SwissComponent } from '@swissjs/core';
+
+component PageHeader {
+  props = {
+    title: String,
+    breadcrumb: Array as () => Array<{ label: string; href?: string }>,
+    actions: Array as () => Array<{ label: string; variant?: string; onclick: () => void }>,
+  };
+
+  render() {
+    const breadcrumbs = Array.isArray(this.props.breadcrumb) ? this.props.breadcrumb : [];
+    const actions = Array.isArray(this.props.actions) ? this.props.actions : [];
+    const hasBreadcrumbs = breadcrumbs.length > 0;
+    const hasActions = actions.length > 0;
+
+    return (
+      <div class="aui-page-header">
+        <div>
+          {hasBreadcrumbs ? (
+            <div class="aui-breadcrumb">
+              {breadcrumbs.map((item, index) => {
+                const isLast = index === breadcrumbs.length - 1;
+                return (
+                  <span>
+                    {item.href && !isLast ? (
+                      <a href={item.href} class="aui-breadcrumb-link">{item.label}</a>
+                    ) : (
+                      <span>{item.label}</span>
+                    )}
+                    {!isLast ? <span class="aui-breadcrumb-sep">/</span> : null}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
+          <h1 class="aui-page-title">{this.props.title || ''}</h1>
+        </div>
+
+        {hasActions ? (
+          <div class="aui-page-actions">
+            {actions.map(action => (
+              <button
+                type="button"
+                class={`aui-btn${action.variant ? ` aui-btn--${action.variant}` : ''}`}
+                onclick={() => action.onclick && action.onclick()}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+}

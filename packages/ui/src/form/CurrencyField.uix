@@ -1,0 +1,77 @@
+import { SwissComponent } from '@swissjs/core';
+import TextField from './TextField.ui';
+
+component CurrencyField {
+  props = {
+    label: String,
+    value: Number,
+    placeholder: String,
+    required: Boolean,
+    error: String,
+    disabled: Boolean,
+    onchange: Function as (value: number | null) => void,
+  };
+
+  state { let displayValue: string = ''; }
+  state { let numericValue: number | null = null; }
+
+  mount {
+    this.numericValue = typeof this.props.value === 'number' ? this.props.value : null;
+    this.displayValue = this.formatCurrency(this.numericValue);
+  }
+
+  formatCurrency(val: number | null): string {
+    if (val === null || isNaN(val)) return '';
+    return new Intl.NumberFormat('en-MW', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(val);
+  }
+
+  parseCurrency(val: string): number | null {
+    if (!val) return null;
+    const clean = val.replace(/,/g, '');
+    const num = parseFloat(clean);
+    return isNaN(num) ? null : num;
+  }
+
+  handleChange(val: string) {
+    this.displayValue = val;
+    this.scheduleUpdate?.();
+    const num = this.parseCurrency(val);
+    if (this.props.onchange) this.props.onchange(num);
+  }
+
+  handleFocus() {
+    // Strip formatting on focus
+    if (this.numericValue !== null) {
+      this.displayValue = this.numericValue.toString();
+      this.scheduleUpdate?.();
+    }
+  }
+
+  handleBlur() {
+    // Re-format on blur
+    this.numericValue = this.parseCurrency(this.displayValue);
+    this.displayValue = this.formatCurrency(this.numericValue);
+    this.scheduleUpdate?.();
+  }
+
+  render() {
+    return (
+      <TextField
+        label={this.props.label}
+        value={this.displayValue}
+        placeholder={this.props.placeholder || '0.00'}
+        type="text"
+        required={!!this.props.required}
+        error={this.props.error}
+        disabled={!!this.props.disabled}
+        prefix="MWK"
+        onchange={(val: string) => this.handleChange(val)}
+        onfocus={() => this.handleFocus()}
+        onblur={() => this.handleBlur()}
+      />
+    );
+  }
+}

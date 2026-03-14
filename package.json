@@ -1,0 +1,11 @@
+{
+  "name": "alpine-ui",
+  "private": true,
+  "type": "module",
+  "pnpm": {
+    "overrides": {
+      "@swissjs/core": "link:../../swiss-lib/packages/core",
+      "@swissjs/compiler": "link:../../swiss-lib/packages/compiler"
+    }
+  }
+}

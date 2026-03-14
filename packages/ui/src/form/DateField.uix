@@ -1,0 +1,41 @@
+import { SwissComponent } from '@swissjs/core';
+import TextField from './TextField.ui';
+
+component DateField {
+  props = {
+    label: String,
+    value: String, // format: YYYY-MM-DD
+    placeholder: String,
+    required: Boolean,
+    error: String,
+    disabled: Boolean,
+    onchange: Function as (value: string) => void,
+  };
+
+  state { let internalValue: string = ''; }
+
+  mount {
+    this.internalValue = this.props.value || '';
+  }
+
+  handleChange(val: string) {
+    this.internalValue = val;
+    this.scheduleUpdate?.();
+    if (this.props.onchange) this.props.onchange(val);
+  }
+
+  render() {
+    return (
+      <TextField
+        label={this.props.label}
+        value={this.internalValue}
+        placeholder={this.props.placeholder || 'DD/MM/YYYY'}
+        type="date"
+        required={!!this.props.required}
+        error={this.props.error}
+        disabled={!!this.props.disabled}
+        onchange={(val: string) => this.handleChange(val)}
+      />
+    );
+  }
+}
