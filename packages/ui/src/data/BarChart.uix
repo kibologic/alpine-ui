@@ -1,0 +1,55 @@
+import { SwissComponent } from '@swissjs/core';
+import { Chart } from './Chart.uix';
+
+component BarChart {
+  props = {
+    categories: Array as () => string[],
+    series: Array as () => Array<{ name: string; data: number[] }>,
+    height: { type: String, default: '300px' },
+    color: String,
+  };
+
+  get chartOption() {
+    const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || '#415A77';
+    
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' }
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: this.categories || [],
+        axisTick: { alignWithLabel: true }
+      },
+      yAxis: {
+        type: 'value'
+      },
+      series: (this.series || []).map(s => ({
+        name: s.name,
+        type: 'bar',
+        barWidth: '60%',
+        data: s.data,
+        itemStyle: {
+          color: this.color || accentColor
+        }
+      }))
+    };
+  }
+
+  render() {
+    return (
+      <Chart 
+        type="bar" 
+        data={this.chartOption} 
+        height={this.height} 
+      />
+    );
+  }
+}

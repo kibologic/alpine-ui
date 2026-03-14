@@ -19,5 +19,8 @@ export { default as FormGroup } from './form/FormGroup.uix';
 
 // Data
 export { default as DataTable } from './data/DataTable.uix';
-export { default as DataExport } from './data/DataExport.uix';
 export { default as DataImport } from './data/DataImport.uix';
+export { default as DataExport } from './data/DataExport.uix';
+export { default as Chart } from './data/Chart.uix';
+export { default as BarChart } from './data/BarChart.uix';
+export { default as LineChart } from './data/LineChart.uix';

@@ -1,0 +1,64 @@
+import { SwissComponent } from '@swissjs/core';
+import { Chart } from './Chart.uix';
+
+component LineChart {
+  props = {
+    categories: Array as () => string[],
+    series: Array as () => Array<{ name: string; data: number[] }>,
+    height: { type: String, default: '300px' },
+    color: String,
+    area: { type: Boolean, default: false }
+  };
+
+  get chartOption() {
+    const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim() || '#415A77';
+    
+    return {
+      tooltip: {
+        trigger: 'axis'
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: this.categories || []
+      },
+      yAxis: {
+        type: 'value'
+      },
+      series: (this.series || []).map(s => ({
+        name: s.name,
+        type: 'line',
+        data: s.data,
+        smooth: true,
+        showSymbol: false,
+        lineStyle: {
+          width: 3,
+          color: this.color || accentColor
+        },
+        areaStyle: this.area ? {
+          color: new window.echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: this.color || accentColor },
+            { offset: 1, color: 'transparent' }
+          ]),
+          opacity: 0.2
+        } : null
+      }))
+    };
+  }
+
+  render() {
+    return (
+      <Chart 
+        type="line" 
+        data={this.chartOption} 
+        height={this.height} 
+      />
+    );
+  }
+}
