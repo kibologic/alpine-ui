@@ -14,33 +14,33 @@ export { ListView } from './views/ListView.uix';
 export { FormView } from './views/FormView.uix';
 
 // Layout
-export { default as PageHeader } from './layout/PageHeader.uix';
-export { default as Section } from './layout/Section.uix';
-export { default as StatStrip } from './layout/StatStrip.uix';
-export { default as Tabs } from './layout/Tabs.uix';
+export { PageHeader } from './layout/PageHeader.uix';
+export { Section } from './layout/Section.uix';
+export { StatStrip } from './layout/StatStrip.uix';
+export { Tabs } from './layout/Tabs.uix';
 export { FormSection } from './layout/FormSection.uix';
 export { RecordHeader } from './layout/RecordHeader.uix';
 
 // Feedback
-export { default as EmptyState } from './feedback/EmptyState.uix';
-export { default as Modal } from './feedback/Modal.uix';
-export { default as Toast } from './feedback/Toast.uix';
-export { default as SidePanel } from './feedback/SidePanel.uix';
+export { EmptyState } from './feedback/EmptyState.uix';
+export { Modal } from './feedback/Modal.uix';
+export { Toast } from './feedback/Toast.uix';
+export { SidePanel } from './feedback/SidePanel.uix';
 
 // Display
-export { default as StatusBadge } from './display/StatusBadge.uix';
+export { StatusBadge } from './display/StatusBadge.uix';
 
 // Form
-export { default as TextField } from './form/TextField.uix';
-export { default as CurrencyField } from './form/CurrencyField.uix';
-export { default as DateField } from './form/DateField.uix';
-export { default as SelectField } from './form/SelectField.uix';
-export { default as FormGroup } from './form/FormGroup.uix';
+export { TextField } from './form/TextField.uix';
+export { CurrencyField } from './form/CurrencyField.uix';
+export { DateField } from './form/DateField.uix';
+export { SelectField } from './form/SelectField.uix';
+export { FormGroup } from './form/FormGroup.uix';
 
 // Data
-export { default as DataTable } from './data/DataTable.uix';
-export { default as DataImport } from './data/DataImport.uix';
-export { default as DataExport } from './data/DataExport.uix';
-export { default as Chart } from './data/Chart.uix';
-export { default as BarChart } from './data/BarChart.uix';
-export { default as LineChart } from './data/LineChart.uix';
+export { DataTable } from './data/DataTable.uix';
+export { DataImport } from './data/DataImport.uix';
+export { DataExport } from './data/DataExport.uix';
+export { Chart } from './data/Chart.uix';
+export { BarChart } from './data/BarChart.uix';
+export { LineChart } from './data/LineChart.uix';
