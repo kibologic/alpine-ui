@@ -12,24 +12,28 @@ import { Button } from '../primitives/Button.uix';
  */
 component ListView {
     props = {
-        model: String, // Data model name
+        model: String,
         title: String,
-        columns: Array as () => any[],
-        rows: Array as () => any[],
-        stats: Array as () => any[] = [],
-        filters: Array as () => any[] = [],
-        selectedFilters: Array as () => string[] = [],
-        searchQuery: String = '',
+        columns: Array,
+        rows: Array,
+        stats: Array,
+        filters: Array,
+        selectedFilters: Array,
+        searchQuery: String,
         loading: Boolean,
         onSearch: Function,
         onFilterChange: Function,
         onRowClick: Function,
-        onAction: Function, // Global actions like Create, Import
-        primaryAction: Object as () => { label: string; icon?: string; action: string }
+        onAction: Function,
+        primaryAction: Object
     };
 
     render() {
-        const { title, columns, rows, stats, filters, selectedFilters, searchQuery, loading, primaryAction } = this.props;
+        const stats = this.props.stats || [];
+        const filters = this.props.filters || [];
+        const selectedFilters = this.props.selectedFilters || [];
+        const searchQuery = this.props.searchQuery || '';
+        const { title, columns, rows, loading, primaryAction } = this.props;
 
         return (
             <div class="aui-view-container aui-list-view">

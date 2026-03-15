@@ -8,14 +8,14 @@ component Input {
     props = {
         value: String,
         placeholder: String,
-        type: String = 'text',
+        type: String,
         disabled: Boolean,
         error: Boolean,
-        onchange: Function as (val: string) => void,
-        oninput: Function as (val: string) => void,
-        onfocus: Function as () => void,
-        onblur: Function as () => void,
-        onkeydown: Function as (e: KeyboardEvent) => void,
+        onchange: Function,
+        oninput: Function,
+        onfocus: Function,
+        onblur: Function,
+        onkeydown: Function,
         class: String,
         style: String,
         name: String,
@@ -23,7 +23,8 @@ component Input {
     };
 
     render() {
-        const { value, placeholder, type, disabled, error, class: className, style, name, autocomplete } = this.props;
+        const type = this.props.type || 'text';
+        const { value, placeholder, disabled, error, class: className, style, name, autocomplete } = this.props;
         
         const baseClass = 'aui-input-primitive';
         const errorClass = error ? 'aui-input--error' : '';

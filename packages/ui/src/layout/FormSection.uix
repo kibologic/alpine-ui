@@ -8,12 +8,13 @@ component FormSection {
     props = {
         title: String,
         description: String,
-        columns: Number = 1,
+        columns: Number,
         class: String
     };
 
     render() {
-        const { title, description, columns, class: className } = this.props;
+        const columns = this.props.columns !== undefined ? this.props.columns : 1;
+        const { title, description, class: className } = this.props;
 
         return (
             <div class={`aui-form-section ${className || ''}`}>

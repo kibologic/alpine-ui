@@ -7,14 +7,15 @@ import { SwissComponent } from '@swissjs/core';
 component Badge {
     props = {
         label: String,
-        variant: String as () => 'neutral' | 'success' | 'warning' | 'danger' | 'info' = 'neutral',
+        variant: String,
         dot: Boolean,
         onclick: Function,
         class: String
     };
 
     render() {
-        const { label, variant, dot, onclick, class: className } = this.props;
+        const variant = this.props.variant || 'neutral';
+        const { label, dot, onclick, class: className } = this.props;
         
         const baseClass = 'aui-badge-primitive';
         const variantClass = `aui-badge--${variant || 'neutral'}`;

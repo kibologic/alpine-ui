@@ -9,12 +9,13 @@ component StatCard {
         label: String,
         value: String,
         delta: String,
-        deltaType: String as () => 'positive' | 'negative' | 'neutral' = 'neutral',
+        deltaType: String,
         icon: String
     };
 
     render() {
-        const { label, value, delta, deltaType, icon } = this.props;
+        const deltaType = this.props.deltaType || 'neutral';
+        const { label, value, delta, icon } = this.props;
 
         return (
             <div class="aui-stat-card">

@@ -7,20 +7,24 @@ import { SwissComponent } from '@swissjs/core';
 component Button {
     props = {
         label: String,
-        variant: String as () => 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' = 'primary',
-        size: String as () => 'sm' | 'md' | 'lg' = 'md',
+        variant: String,
+        size: String,
         disabled: Boolean,
         loading: Boolean,
-        icon: String, // SVG string
-        iconPosition: String as () => 'left' | 'right' = 'left',
-        onclick: Function as (e: Event) => void,
-        type: String as () => 'button' | 'submit' | 'reset' = 'button',
+        icon: String,
+        iconPosition: String,
+        onclick: Function,
+        type: String,
         class: String,
         style: String
     };
 
     render() {
-        const { label, variant, size, disabled, loading, icon, iconPosition, onclick, type, className, style } = this.props;
+        const variant = this.props.variant || 'primary';
+        const size = this.props.size || 'md';
+        const iconPosition = this.props.iconPosition || 'left';
+        const type = this.props.type || 'button';
+        const { label, disabled, loading, icon, onclick, style } = this.props;
         
         const baseClass = 'aui-btn-primitive';
         const variantClass = `aui-btn--${variant || 'primary'}`;

@@ -7,18 +7,20 @@ import { Button } from './Button.uix';
  */
 component IconButton {
     props = {
-        icon: String, // SVG string
-        variant: String as () => 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' = 'ghost',
-        size: String as () => 'sm' | 'md' | 'lg' = 'md',
+        icon: String,
+        variant: String,
+        size: String,
         disabled: Boolean,
         loading: Boolean,
-        onclick: Function as (e: Event) => void,
+        onclick: Function,
         title: String,
         class: String
     };
 
     render() {
-        const { icon, variant, size, disabled, loading, onclick, title, class: className } = this.props;
+        const variant = this.props.variant || 'ghost';
+        const size = this.props.size || 'md';
+        const { icon, disabled, loading, onclick, title, class: className } = this.props;
 
         return (
             <Button

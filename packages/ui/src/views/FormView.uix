@@ -14,7 +14,7 @@ component FormView {
         subtitle: String,
         status: String,
         statusVariant: String,
-        tabs: Array as () => Array<{ id: string; label: string }>,
+        tabs: Array,
         activeTab: String,
         onTabChange: Function,
         onSave: Function,
