@@ -12,6 +12,8 @@ component DataTable {
     onSelectionChange: Function as (selected: any[]) => void,
     exportable: Boolean,
     searchable: Boolean,
+    emptyTitle: String,
+    emptyDescription: String,
   };
 
   state { let sortKey: string = ''; }
@@ -179,8 +181,8 @@ component DataTable {
                   <td colspan={colSpan} style="padding: 0;">
                     <EmptyState 
                       icon="📁" 
-                      title="No data found" 
-                      description={this.searchQuery ? "Try adjusting your search query." : "There are no records to display."} 
+                      title={this.props.emptyTitle || "No data found"} 
+                      description={this.props.emptyDescription || (this.searchQuery ? "Try adjusting your search query." : "There are no records to display.")} 
                     />
                   </td>
                 </tr>
