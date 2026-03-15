@@ -16,23 +16,6 @@ component PageHeader {
     return (
       <div class="aui-page-header">
         <div>
-          {hasBreadcrumbs ? (
-            <div class="aui-breadcrumb">
-              {breadcrumbs.map((item, index) => {
-                const isLast = index === breadcrumbs.length - 1;
-                return (
-                  <span>
-                    {item.href && !isLast ? (
-                      <a href={item.href} class="aui-breadcrumb-link">{item.label}</a>
-                    ) : (
-                      <span>{item.label}</span>
-                    )}
-                    {!isLast ? <span class="aui-breadcrumb-sep">/</span> : null}
-                  </span>
-                );
-              })}
-            </div>
-          ) : null}
           <h1 class="aui-page-title">{this.props.title || ''}</h1>
         </div>
 

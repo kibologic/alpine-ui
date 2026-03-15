@@ -40,37 +40,6 @@
 }
 .aui-btn:hover { background-color: var(--prussian-blue); }
 
-/* PageHeader */
-.aui-page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 1.5rem 0;
-  border-bottom: 1px solid var(--dusty-denim);
-  margin-bottom: 2rem;
-}
-.aui-page-title {
-  color: var(--ink-black);
-  margin: 0 0 0.5rem 0;
-  font-size: 1.75rem;
-}
-.aui-breadcrumb {
-  display: flex;
-  gap: 0.5rem;
-  color: var(--dusty-denim);
-  font-size: 0.875rem;
-}
-.aui-breadcrumb-link {
-  color: var(--dusk-blue);
-  text-decoration: none;
-}
-.aui-breadcrumb-link:hover {
-  text-decoration: underline;
-}
-.aui-page-actions {
-  display: flex;
-  gap: 0.5rem;
-}
 
 /* Section */
 .aui-section {
@@ -401,8 +370,11 @@
 
 /* Page wrapper */
 .alp-page {
-  padding: 1.5rem 2rem;
-  max-width: 100%;
+  padding: var(--space-4) var(--space-6);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* Stock Take Layout */
