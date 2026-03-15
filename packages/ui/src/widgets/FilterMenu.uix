@@ -8,10 +8,10 @@ import { Badge } from '../primitives/Badge.uix';
  */
 component FilterMenu {
     props = {
-        options: Array as () => Array<{ value: string; label: string }>,
-        selected: Array as () => string[] = [],
-        onchange: Function as (selected: string[]) => void,
-        label: String = 'Filters'
+        options: Array,
+        selected: Array,
+        onchange: Function,
+        label: String
     };
 
     state { let isOpen: boolean = false; }
@@ -30,7 +30,9 @@ component FilterMenu {
     }
 
     render() {
-        const { options, selected, label } = this.props;
+        const options = this.props.options || [];
+        const selected = this.props.selected || [];
+        const label = this.props.label || 'Filters';
         const filterIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`;
 
         return (
