@@ -7,11 +7,11 @@
 }
 
 /* Base styles to use our variables */
-.aui-text-primary { color: var(--ink-black); }
-.aui-text-secondary { color: var(--prussian-blue); }
-.aui-text-accent { color: var(--dusk-blue); }
-.aui-text-muted { color: var(--dusty-denim); }
-.aui-bg-light { background-color: var(--alabaster-grey); }
+.aui-text-primary { color: var(--erp-text-primary); }
+.aui-text-secondary { color: var(--erp-text-secondary); }
+.aui-text-accent { color: var(--erp-accent); }
+.aui-text-muted { color: var(--erp-text-muted); }
+.aui-bg-light { background-color: var(--erp-surface-1); }
 
 /* EmptyState */
 .aui-empty-state {
@@ -30,15 +30,17 @@
 .aui-empty-title { font-size: 1.25rem; font-weight: 600; color: var(--ink-black); margin-bottom: 0.5rem; }
 .aui-empty-desc { font-size: 0.875rem; color: var(--prussian-blue); margin-bottom: 1.5rem; }
 .aui-btn {
-  background-color: var(--dusk-blue);
-  color: var(--alabaster-grey);
+  background-color: var(--erp-accent);
+  color: var(--erp-text-inverse);
   border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
+  padding: 0.53rem 1rem;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 500;
+  transition: background var(--duration-fast);
 }
-.aui-btn:hover { background-color: var(--prussian-blue); }
+.aui-btn:hover { background-color: var(--erp-accent-hover); }
+.aui-btn:active { background-color: var(--erp-accent-active); }
 
 
 /* Section */
@@ -74,26 +76,30 @@
 .aui-input-wrap {
   display: flex;
   align-items: center;
-  border: 1px solid var(--dusty-denim);
-  border-radius: 4px;
-  background: white;
+  border: 1px solid var(--erp-input-border);
+  border-radius: var(--radius-md);
+  background: var(--erp-input-bg);
   overflow: hidden;
 }
 .aui-input-wrap:focus-within {
-  border-color: var(--dusk-blue);
-  box-shadow: 0 0 0 2px rgba(65, 90, 119, 0.2);
+  border-color: var(--erp-input-focus);
+  box-shadow: 0 0 0 2px var(--erp-accent-glow);
 }
 .aui-input {
   flex: 1;
   border: none;
   padding: 0.5rem;
   outline: none;
-  color: var(--ink-black);
+  color: var(--erp-text-primary);
+  background: transparent;
   min-width: 0;
 }
+.aui-input::placeholder {
+  color: var(--erp-input-placeholder);
+}
 .aui-input:disabled {
-  background-color: var(--alabaster-grey);
-  color: var(--dusty-denim);
+  background-color: var(--erp-surface-3);
+  color: var(--erp-text-muted);
 }
 .aui-input-prefix, .aui-input-suffix {
   padding: 0 0.5rem;
@@ -131,19 +137,29 @@
 }
 .aui-table th, .aui-table td {
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--dusty-denim);
+  border-bottom: 1px solid var(--erp-divider);
 }
 .aui-table th {
-  background-color: var(--prussian-blue);
-  color: var(--alabaster-grey);
-  font-weight: 500;
+  background-color: var(--erp-table-header);
+  color: var(--erp-text-secondary);
+  font-weight: 600;
   position: relative;
+  text-transform: uppercase;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.05em;
+}
+.aui-table-row {
+  background-color: var(--erp-table-row);
+  color: var(--erp-text-primary);
+}
+.aui-table-row:nth-child(even) {
+  background-color: var(--erp-table-row-alt);
 }
 .aui-table-row:hover {
-  background-color: var(--alabaster-grey);
+  background-color: var(--erp-table-hover);
 }
 .aui-table-row--selected {
-  background-color: rgba(119, 141, 169, 0.2);
+  background-color: var(--erp-table-selected);
 }
 .aui-sort-icon {
   margin-left: 0.5rem;
@@ -273,10 +289,15 @@
   margin-bottom: var(--space-6);
 }
 .aui-stat-card {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-bg-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
+  background: var(--erp-card-bg);
+  border: 1px solid var(--erp-card-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  transition: transform var(--duration-fast), background var(--duration-fast);
+}
+.aui-stat-card:hover {
+  background: var(--erp-card-hover);
+  transform: translateY(-1px);
 }
 .aui-stat-value {
   font-size: var(--font-size-2xl);
