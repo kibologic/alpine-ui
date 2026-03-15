@@ -114,7 +114,7 @@ component DataTable {
 
     return (
       <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
           {isSearchable ? (
             <input
               type="text"
@@ -168,7 +168,7 @@ component DataTable {
                 {[0, 1, 2, 3, 4].map(() => (
                   <tr class="aui-table-row">
                     <td colspan={colSpan} style="padding: 1rem;">
-                      <div style="height: 20px; background: var(--alabaster-grey); border-radius: 4px; animation: pulse 1.5s infinite;"></div>
+                      <div style="height: 20px; background: var(--erp-surface-3); border-radius: var(--radius-sm); animation: pulse 1.5s infinite;"></div>
                     </td>
                   </tr>
                 ))}
@@ -224,7 +224,7 @@ component DataTable {
 
         {hasData ? (
           <div class="aui-pagination">
-            <div style="color: var(--dusty-denim); font-size: 0.875rem;">
+            <div style="color: var(--erp-text-muted); font-size: 0.875rem;">
               Showing {startIndex + 1}-{Math.min(startIndex + this.rowsPerPage, totalRows)} of {totalRows}
             </div>
             

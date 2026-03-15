@@ -57,7 +57,7 @@ component TextField {
         {this.props.label ? (
           <label class="aui-label">
             {this.props.label}
-            {isRequired ? <span style="color: #c0392b; margin-left: 2px;">*</span> : null}
+            {isRequired ? <span style="color: var(--erp-danger); margin-left: 2px;">*</span> : null}
           </label>
         ) : null}
 

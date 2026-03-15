@@ -21,14 +21,14 @@
   justify-content: center;
   padding: 3rem;
   text-align: center;
-  color: var(--dusty-denim);
-  background-color: var(--alabaster-grey);
-  border-radius: 8px;
-  border: 1px dashed var(--dusty-denim);
+  color: var(--erp-text-muted);
+  background-color: var(--erp-surface-2);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--erp-border);
 }
-.aui-empty-icon { font-size: 2rem; margin-bottom: 1rem; color: var(--dusk-blue); }
-.aui-empty-title { font-size: 1.25rem; font-weight: 600; color: var(--ink-black); margin-bottom: 0.5rem; }
-.aui-empty-desc { font-size: 0.875rem; color: var(--prussian-blue); margin-bottom: 1.5rem; }
+.aui-empty-icon { font-size: 2.5rem; margin-bottom: 1rem; color: var(--erp-accent); opacity: 0.5; }
+.aui-empty-title { font-size: 1.25rem; font-weight: 600; color: var(--erp-text-primary); margin-bottom: 0.5rem; }
+.aui-empty-desc { font-size: 0.875rem; color: var(--erp-text-secondary); margin-bottom: 1.5rem; }
 .aui-btn {
   background-color: var(--erp-accent);
   color: var(--erp-text-inverse);
