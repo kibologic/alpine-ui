@@ -1,0 +1,34 @@
+import { SwissComponent } from '@swissjs/core';
+
+/**
+ * StatCard Widget
+ * Odoo-Style: High-level metric display with trend indication.
+ */
+component StatCard {
+    props = {
+        label: String,
+        value: String,
+        delta: String,
+        deltaType: String as () => 'positive' | 'negative' | 'neutral' = 'neutral',
+        icon: String
+    };
+
+    render() {
+        const { label, value, delta, deltaType, icon } = this.props;
+
+        return (
+            <div class="aui-stat-card">
+                <div class="aui-stat-header">
+                    <span class="aui-stat-label">{label}</span>
+                    {icon && <span class="aui-stat-icon" innerHTML={icon}></span>}
+                </div>
+                <div class="aui-stat-value">{value}</div>
+                {delta && (
+                    <div class={`aui-stat-delta aui-stat-delta--${deltaType}`}>
+                        {deltaType === 'positive' ? '↑' : deltaType === 'negative' ? '↓' : ''} {delta}
+                    </div>
+                )}
+            </div>
+        );
+    }
+}

@@ -1,0 +1,66 @@
+import { SwissComponent } from '@swissjs/core';
+import { IconButton } from '../primitives/IconButton.uix';
+import { Badge } from '../primitives/Badge.uix';
+
+/**
+ * FilterMenu Widget
+ * Odoo-Style: Multi-selection filter dropdown with active count.
+ */
+component FilterMenu {
+    props = {
+        options: Array as () => Array<{ value: string; label: string }>,
+        selected: Array as () => string[] = [],
+        onchange: Function as (selected: string[]) => void,
+        label: String = 'Filters'
+    };
+
+    state { let isOpen: boolean = false; }
+
+    toggle(e: Event) {
+        e.stopPropagation();
+        this.isOpen = !this.isOpen;
+        this.scheduleUpdate?.();
+    }
+
+    toggleOption(val: string) {
+        const next = this.props.selected.includes(val)
+            ? this.props.selected.filter(i => i !== val)
+            : [...this.props.selected, val];
+        if (this.props.onchange) this.props.onchange(next);
+    }
+
+    render() {
+        const { options, selected, label } = this.props;
+        const filterIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`;
+
+        return (
+            <div class={`aui-filter-menu ${this.isOpen ? 'aui-filter-menu--open' : ''}`}>
+                <div class="aui-filter-trigger" onclick={(e) => this.toggle(e)}>
+                    <span class="aui-filter-icon" innerHTML={filterIcon}></span>
+                    <span class="aui-filter-label">{label}</span>
+                    {selected.length > 0 && (
+                        <Badge label={String(selected.length)} variant="info" class="aui-filter-count" />
+                    )}
+                </div>
+
+                {this.isOpen && (
+                    <div class="aui-filter-dropdown" onclick={(e) => e.stopPropagation()}>
+                        {options.map(opt => (
+                            <label class="aui-filter-item">
+                                <input 
+                                    type="checkbox" 
+                                    checked={selected.includes(opt.value)}
+                                    onchange={() => this.toggleOption(opt.value)}
+                                />
+                                <span>{opt.label}</span>
+                            </label>
+                        ))}
+                        {selected.length > 0 && (
+                            <button class="aui-filter-clear" onclick={() => this.props.onchange([])}>Clear All</button>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    }
+}

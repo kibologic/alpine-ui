@@ -1,6 +1,8 @@
 import { SwissComponent } from '@swissjs/core';
 import { EmptyState } from '../feedback/EmptyState.uix';
 import { DataExport } from './DataExport.uix';
+import { Input } from '../primitives/Input.uix';
+import { Button } from '../primitives/Button.uix';
 
 component DataTable {
   props = {
@@ -116,12 +118,11 @@ component DataTable {
       <div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
           {isSearchable ? (
-            <input
-              type="text"
-              class="aui-input aui-table-search"
+            <Input
               placeholder="Search..."
               value={this.searchQuery}
-              oninput={(e: Event) => this.handleSearch(e)}
+              oninput={(val) => { this.searchQuery = val; this.currentPage = 1; this.scheduleUpdate?.(); }}
+              style="width: 240px"
             />
           ) : <div></div>}
           
@@ -240,18 +241,20 @@ component DataTable {
               </select>
               
               <div style="display: flex; gap: 0.25rem;">
-                <button 
-                  class="aui-btn" 
+                <Button 
+                  label="Prev" 
+                  variant="outline"
+                  size="sm"
                   disabled={this.currentPage === 1}
                   onclick={() => this.changePage(-1)}
-                  style={this.currentPage === 1 ? 'opacity: 0.5; cursor: not-allowed;' : ''}
-                >Prev</button>
-                <button 
-                  class="aui-btn" 
+                />
+                <Button 
+                  label="Next" 
+                  variant="outline"
+                  size="sm"
                   disabled={this.currentPage >= totalPages}
                   onclick={() => this.changePage(1)}
-                  style={this.currentPage >= totalPages ? 'opacity: 0.5; cursor: not-allowed;' : ''}
-                >Next</button>
+                />
               </div>
             </div>
           </div>

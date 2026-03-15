@@ -1,0 +1,45 @@
+import { SwissComponent } from '@swissjs/core';
+import { Input } from '../primitives/Input.uix';
+import { IconButton } from '../primitives/IconButton.uix';
+
+/**
+ * SearchBar Widget
+ * Odoo-Style: Standard search interface with icon and clear action.
+ */
+component SearchBar {
+    props = {
+        value: String,
+        placeholder: String = 'Search...',
+        onsearch: Function as (val: string) => void,
+        onclear: Function as () => void,
+        width: String = '300px'
+    };
+
+    render() {
+        const { value, placeholder, onsearch, onclear, width } = this.props;
+
+        const searchIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
+        const clearIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
+
+        return (
+            <div class="aui-search-bar" style={`width: ${width}`}>
+                <span class="aui-search-icon" innerHTML={searchIcon}></span>
+                <Input 
+                    value={value}
+                    placeholder={placeholder}
+                    class="aui-search-input"
+                    oninput={(val) => onsearch && onsearch(val)}
+                />
+                {value ? (
+                    <IconButton 
+                        icon={clearIcon}
+                        variant="ghost"
+                        size="sm"
+                        onclick={() => onclear && onclear()}
+                        class="aui-search-clear"
+                    />
+                ) : null}
+            </div>
+        );
+    }
+}

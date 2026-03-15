@@ -1,0 +1,37 @@
+import { SwissComponent } from '@swissjs/core';
+import { Button } from './Button.uix';
+
+/**
+ * Primitive IconButton
+ * Optimized for toolbars and compact actions.
+ */
+component IconButton {
+    props = {
+        icon: String, // SVG string
+        variant: String as () => 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' = 'ghost',
+        size: String as () => 'sm' | 'md' | 'lg' = 'md',
+        disabled: Boolean,
+        loading: Boolean,
+        onclick: Function as (e: Event) => void,
+        title: String,
+        class: String
+    };
+
+    render() {
+        const { icon, variant, size, disabled, loading, onclick, title, class: className } = this.props;
+
+        return (
+            <Button
+                icon={icon}
+                variant={variant}
+                size={size}
+                disabled={disabled}
+                loading={loading}
+                onclick={onclick}
+                title={title}
+                class={`aui-icon-btn-primitive ${className || ''}`}
+                label=""
+            />
+        );
+    }
+}

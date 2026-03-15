@@ -1,0 +1,85 @@
+import { SwissComponent } from '@swissjs/core';
+import { StatCard } from '../widgets/StatCard.uix';
+import { SearchBar } from '../widgets/SearchBar.uix';
+import { FilterMenu } from '../widgets/FilterMenu.uix';
+import { DataTable } from '../data/DataTable.uix';
+import { Button } from '../primitives/Button.uix';
+
+/**
+ * ListView Engine
+ * Odoo-Style: The "Assembly Machine" for list data.
+ * Manages Stats, Search, Filters, and Table automatically.
+ */
+component ListView {
+    props = {
+        model: String, // Data model name
+        title: String,
+        columns: Array as () => any[],
+        rows: Array as () => any[],
+        stats: Array as () => any[] = [],
+        filters: Array as () => any[] = [],
+        selectedFilters: Array as () => string[] = [],
+        searchQuery: String = '',
+        loading: Boolean,
+        onSearch: Function,
+        onFilterChange: Function,
+        onRowClick: Function,
+        onAction: Function, // Global actions like Create, Import
+        primaryAction: Object as () => { label: string; icon?: string; action: string }
+    };
+
+    render() {
+        const { title, columns, rows, stats, filters, selectedFilters, searchQuery, loading, primaryAction } = this.props;
+
+        return (
+            <div class="aui-view-container aui-list-view">
+                {/* 1. Stat Layer */}
+                {stats.length > 0 && (
+                    <div class="aui-view-stats">
+                        {stats.map(s => <StatCard {...s} />)}
+                    </div>
+                )}
+
+                {/* 2. Control Panel (Odoo's Secret Weapon) */}
+                <div class="aui-view-control-panel">
+                    <div class="aui-control-left">
+                        {primaryAction && (
+                            <Button 
+                                label={primaryAction.label} 
+                                icon={primaryAction.icon} 
+                                onclick={() => this.props.onAction && this.props.onAction(primaryAction.action)}
+                            />
+                        )}
+                        <div class="aui-v-divider"></div>
+                        <div class="aui-view-actions">
+                            <Button label="Import" variant="outline" size="sm" onclick={() => this.props.onAction && this.props.onAction('import')} />
+                            <Button label="Export" variant="outline" size="sm" onclick={() => this.props.onAction && this.props.onAction('export')} />
+                        </div>
+                    </div>
+
+                    <div class="aui-control-right">
+                        <SearchBar 
+                            value={searchQuery} 
+                            onsearch={(val) => this.props.onSearch && this.props.onSearch(val)}
+                        />
+                        <FilterMenu 
+                            options={filters} 
+                            selected={selectedFilters} 
+                            onchange={(next) => this.props.onFilterChange && this.props.onFilterChange(next)}
+                        />
+                    </div>
+                </div>
+
+                {/* 3. Data Presentation Layer */}
+                <div class="aui-view-body">
+                    <DataTable 
+                        columns={columns}
+                        rows={rows}
+                        loading={loading}
+                        onRowClick={this.props.onRowClick}
+                    />
+                </div>
+            </div>
+        );
+    }
+}

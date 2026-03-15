@@ -1,0 +1,51 @@
+import { SwissComponent } from '@swissjs/core';
+
+/**
+ * Primitive Button
+ * Odoo-Style: Pure UI block with variant handling and state.
+ */
+component Button {
+    props = {
+        label: String,
+        variant: String as () => 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' = 'primary',
+        size: String as () => 'sm' | 'md' | 'lg' = 'md',
+        disabled: Boolean,
+        loading: Boolean,
+        icon: String, // SVG string
+        iconPosition: String as () => 'left' | 'right' = 'left',
+        onclick: Function as (e: Event) => void,
+        type: String as () => 'button' | 'submit' | 'reset' = 'button',
+        class: String,
+        style: String
+    };
+
+    render() {
+        const { label, variant, size, disabled, loading, icon, iconPosition, onclick, type, className, style } = this.props;
+        
+        const baseClass = 'aui-btn-primitive';
+        const variantClass = `aui-btn--${variant || 'primary'}`;
+        const sizeClass = `aui-btn--${size || 'md'}`;
+        const loadingClass = loading ? 'aui-btn--loading' : '';
+        const customClass = this.props.class || '';
+
+        return (
+            <button
+                type={type}
+                class={`${baseClass} ${variantClass} ${sizeClass} ${loadingClass} ${customClass}`}
+                disabled={disabled || loading}
+                onclick={(e) => onclick && onclick(e)}
+                style={style}
+            >
+                {loading ? (
+                    <span class="aui-btn-loader"></span>
+                ) : (
+                    <>
+                        {icon && iconPosition === 'left' && <span class="aui-btn-icon left" innerHTML={icon}></span>}
+                        {label && <span class="aui-btn-label">{label}</span>}
+                        {icon && iconPosition === 'right' && <span class="aui-btn-icon right" innerHTML={icon}></span>}
+                    </>
+                )}
+            </button>
+        );
+    }
+}
