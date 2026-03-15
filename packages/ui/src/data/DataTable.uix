@@ -210,7 +210,9 @@ component DataTable {
                         </td>
                       ) : null}
                       {columns.map(col => (
-                        <td>{row[col.key] !== undefined && row[col.key] !== null ? String(row[col.key]) : '—'}</td>
+                        <td>
+                          {col.render ? col.render(row[col.key], row) : (row[col.key] !== undefined && row[col.key] !== null ? String(row[col.key]) : '—')}
+                        </td>
                       ))}
                     </tr>
                   );

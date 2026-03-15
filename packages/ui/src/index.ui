@@ -10,6 +10,9 @@ export { default as Modal } from './feedback/Modal.uix';
 export { default as Toast } from './feedback/Toast.uix';
 export { default as SidePanel } from './feedback/SidePanel.uix';
 
+// Display
+export { default as StatusBadge } from './display/StatusBadge.uix';
+
 // Form
 export { default as TextField } from './form/TextField.uix';
 export { default as CurrencyField } from './form/CurrencyField.uix';
