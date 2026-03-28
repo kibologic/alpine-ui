@@ -17,27 +17,38 @@ component Modal {
   state { let startX: number = 0; }
   state { let startY: number = 0; }
 
-  mount {
+  async mounted() {
     if (typeof window !== 'undefined') {
-      window.addEventListener('keydown', (e: KeyboardEvent) => {
+      this._handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && this.props.open) {
           this.close();
         }
-      });
+      };
+      window.addEventListener('keydown', this._handleKeyDown);
 
-      document.addEventListener('mousemove', (e: MouseEvent) => {
+      this._handleMouseMove = (e: MouseEvent) => {
         if (!this.isDragging) return;
         this.dragX = e.clientX - this.startX;
         this.dragY = e.clientY - this.startY;
         this.scheduleUpdate?.();
-      });
+      };
+      document.addEventListener('mousemove', this._handleMouseMove);
 
-      document.addEventListener('mouseup', () => {
+      this._handleMouseUp = () => {
         if (this.isDragging) {
           this.isDragging = false;
           this.scheduleUpdate?.();
         }
-      });
+      };
+      document.addEventListener('mouseup', this._handleMouseUp);
+    }
+  }
+
+  unmounted() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this._handleKeyDown);
+      document.removeEventListener('mousemove', this._handleMouseMove);
+      document.removeEventListener('mouseup', this._handleMouseUp);
     }
   }
 
