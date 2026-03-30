@@ -30,7 +30,7 @@ component Chart {
 
     // Detect theme from data-theme if not provided
     const theme = this.theme || document.documentElement.getAttribute('data-theme') || 'light';
-    
+    if (!window.echarts) return;
     this.chart = window.echarts.init(el, theme);
     if (this.data) {
       this.chart.setOption(this.data);
@@ -50,6 +50,8 @@ component Chart {
   async updated() {
     if (this.chart && this.data) {
       this.chart.setOption(this.data);
+    } else if (!this.chart && this.data && this.refs.chartContainer && window.echarts) {
+      this.initChart();
     }
   }
 
