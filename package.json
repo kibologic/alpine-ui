@@ -4,8 +4,8 @@
   "type": "module",
   "pnpm": {
     "overrides": {
-      "@swissjs/core": "link:../../swiss-lib/packages/core",
-      "@swissjs/compiler": "link:../../swiss-lib/packages/compiler"
+      "@kibologic/core": "link:../../swiss-lib/packages/core",
+      "@kibologic/compiler": "link:../../swiss-lib/packages/compiler"
     }
   }
 }
