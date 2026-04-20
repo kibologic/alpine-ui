@@ -35,8 +35,13 @@ Class prefix: .aui-
 - Modal close/X/ESC — fix pending Phase 1
 - Form onchange handlers — fix pending Phase 1
 
-## Extension rules
 - .ui = pure logic, no JSX
 - .uix = has render() returning JSX
 - All styles in alpine-ui.css with .aui- prefix
 - Palette variables only — no hardcoded colors
+
+## Architecture Migration Task
+- [ ] Overwrite existing library with the battle-tested 24 components from `alpine-erp-core/packages/ui`.
+- [ ] Preserve the 7 external-only components currently in `alpine-ui` (e.g. `FilterMenu.uix`, `EmptyState.uix`, `FormView.uix`) and migrate their specific styles.
+- [ ] Consolidate styling dependencies so that `alpine-ui.css` effectively mirrors the core `components.css` requirements.
+- [ ] Switch external consumers (`alpine-erp-core`, `alpine-erp`) to rely strictly on this package, severing embedded UI dependencies.
