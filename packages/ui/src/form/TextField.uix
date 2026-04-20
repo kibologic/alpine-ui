@@ -2,24 +2,17 @@ import { SwissComponent } from '@kibologic/core';
 
 component TextField {
   props = {
-    label: String,
+    type: String,
     value: String,
     placeholder: String,
-    type: String,
-    required: Boolean,
-    error: String,
     disabled: Boolean,
-    prefix: String,
-    suffix: String,
+    error: String,
     onchange: Function as (value: string) => void,
-    onblur: Function as (e: Event) => void,
-    onfocus: Function as (e: Event) => void,
   };
 
   state { let internalValue: string = ''; }
-  state { let isFocused: boolean = false; }
 
-  mount {
+  mount() {
     this.internalValue = this.props.value || '';
   }
 
@@ -30,61 +23,20 @@ component TextField {
     if (this.props.onchange) this.props.onchange(val);
   }
 
-  handleFocus(e: Event) {
-    this.isFocused = true;
-    this.scheduleUpdate?.();
-    if (this.props.onfocus) this.props.onfocus(e);
-  }
-
-  handleBlur(e: Event) {
-    this.isFocused = false;
-    this.scheduleUpdate?.();
-    if (this.props.onblur) this.props.onblur(e);
-  }
-
   render() {
     const type = this.props.type || 'text';
-    const isDisabled = !!this.props.disabled;
     const hasError = !!this.props.error;
-    const hasPrefix = !!this.props.prefix;
-    const hasSuffix = !!this.props.suffix;
-    const isRequired = !!this.props.required;
-    // Use props.value as source of truth when controlled externally (e.g. CurrencyField resetting)
-    const displayVal = this.props.value !== undefined && this.props.value !== null ? this.props.value : this.internalValue;
-
     return (
-      <div class={`aui-field${isDisabled ? ' aui-field--disabled' : ''}${hasError ? ' aui-field--error' : ''}`}>
-        {this.props.label ? (
-          <label class="aui-label">
-            {this.props.label}
-            {isRequired ? <span style="color: var(--erp-danger); margin-left: 2px;">*</span> : null}
-          </label>
-        ) : null}
-
-        <div class={`aui-input-wrap${this.isFocused ? ' aui-input-wrap--focused' : ''}`}>
-          {hasPrefix ? (
-            <span class="aui-input-prefix">{this.props.prefix}</span>
-          ) : null}
-
-          <input
-            type={type}
-            class={`aui-input${hasError ? ' aui-input--error' : ''}`}
-            placeholder={this.props.placeholder || ''}
-            value={displayVal}
-            disabled={isDisabled}
-            oninput={(e: Event) => this.handleInput(e)}
-            onfocus={(e: Event) => this.handleFocus(e)}
-            onblur={(e: Event) => this.handleBlur(e)}
-          />
-
-          {hasSuffix ? (
-            <span class="aui-input-suffix">{this.props.suffix}</span>
-          ) : null}
-        </div>
-
-        {hasError ? (
-          <span class="aui-error-msg">{this.props.error}</span>
-        ) : null}
+      <div class={`alp-input-wrap alp-input-wrap--md`}>
+        <input
+          type={type}
+          class={`alp-input alp-input--md${hasError ? ' alp-input--error' : ''}`}
+          value={this.internalValue}
+          placeholder={this.props.placeholder || ''}
+          disabled={!!this.props.disabled}
+          oninput={(e: Event) => this.handleInput(e)}
+        />
+        {hasError ? <span class="alp-field-error">{this.props.error}</span> : null}
       </div>
     );
   }

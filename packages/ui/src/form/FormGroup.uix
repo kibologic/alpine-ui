@@ -4,33 +4,19 @@ component FormGroup {
   props = {
     label: String,
     required: Boolean,
-    error: String,
-    helperText: String,
-    renderField: Function as () => any, // Used as slot wrapper
+    renderField: Function as () => any,
   };
 
   render() {
-    const isRequired = !!this.props.required;
-    const hasError = !!this.props.error;
-
     return (
-      <div class={`aui-field${hasError ? ' aui-field--error' : ''}`}>
+      <div class="alp-field">
         {this.props.label ? (
-          <label class="aui-label">
+          <label class="alp-field-label">
             {this.props.label}
-            {isRequired ? <span style="color: var(--ink-black); margin-left: 2px;">*</span> : null}
+            {this.props.required ? <span style="color:var(--color-danger);margin-left:2px">*</span> : null}
           </label>
         ) : null}
-        
-        {this.props.renderField ? this.props.renderField() : null}
-        
-        {hasError ? (
-          <span class="aui-error-msg">{this.props.error}</span>
-        ) : this.props.helperText ? (
-          <span style="font-size: 0.75rem; color: var(--dusty-denim); margin-top: 0.25rem;">
-            {this.props.helperText}
-          </span>
-        ) : null}
+        {this.props.renderField ? this.props.renderField() : this.props.children}
       </div>
     );
   }

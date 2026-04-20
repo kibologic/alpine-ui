@@ -1,5 +1,6 @@
 import { SwissComponent } from '@kibologic/core';
 import { TextField } from './TextField.uix';
+import { formatCurrency, getCurrencySymbol, formatNumber } from '@kibologic/erp-core';
 
 component CurrencyField {
   props = {
@@ -21,10 +22,10 @@ component CurrencyField {
   }
 
   formatCurrency(val: number): string {
-    return new Intl.NumberFormat('en-MW', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(val);
+    return formatNumber(val, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
   }
 
   parseCurrency(val: string): number | null {
@@ -70,7 +71,7 @@ component CurrencyField {
         required={!!this.props.required}
         error={this.props.error}
         disabled={!!this.props.disabled}
-        prefix="MWK"
+        prefix={getCurrencySymbol()}
         onchange={(val: string) => this.handleChange(val)}
         onfocus={() => this.handleFocus()}
         onblur={() => this.handleBlur()}

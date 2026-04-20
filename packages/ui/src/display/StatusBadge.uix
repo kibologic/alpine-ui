@@ -4,15 +4,15 @@ component StatusBadge {
   props = {
     label: String,
     type: String, // success, warning, danger, info, neutral
-    size: String,  // sm, md
   };
 
   render() {
-    const { label, type = 'neutral', size = 'md' } = this.props;
+    const type = this.props.type || 'neutral';
     
+    // Sleek, minimal variant mapping directly to design tokens
     return (
-      <span class={`aui-badge aui-badge--${type} aui-badge--${size}`}>
-        {label}
+      <span class={`alp-badge alp-badge--${type}`}>
+        {this.props.label}
       </span>
     );
   }

@@ -1,0 +1,111 @@
+import { SwissComponent } from '@kibologic/core';
+
+/**
+ * DeleteConfirmModal — reusable soft-delete confirmation dialog.
+ *
+ * Props:
+ *   open        : boolean  — controls visibility
+ *   entityName  : string   — human label shown in the prompt (e.g. "Simba Chips 36g")
+ *   entityType  : string   — entity category shown in title (e.g. "Product", "Category")
+ *   loading     : boolean  — disables buttons while request is in flight
+ *   onconfirm   : (reason: string) => void — called with the typed reason
+ *   oncancel    : () => void
+ *
+ * Usage:
+ *   <DeleteConfirmModal
+ *     open={this.showDeleteModal}
+ *     entityType="Product"
+ *     entityName={this.deletingProduct?.name}
+ *     loading={this.deleting}
+ *     onconfirm={(reason) => this.confirmDelete(reason)}
+ *     oncancel={() => { this.showDeleteModal = false; this.scheduleUpdate?.(); }}
+ *   />
+ */
+component DeleteConfirmModal {
+  props = {
+    open: false,
+    entityName: '',
+    entityType: 'Record',
+    loading: false,
+    onconfirm: null,
+    oncancel: null,
+  };
+
+  state { let reason: string = ''; }
+
+  mounted() {
+    this.reason = '';
+  }
+
+  onOpen() {
+    this.reason = '';
+    this.scheduleUpdate?.();
+  }
+
+  render() {
+    if (!this.props.open) return null;
+
+    const canSubmit = this.reason.trim().length >= 3 && !this.props.loading;
+
+    return (
+      <div
+        style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 1rem;"
+        onclick={(e: any) => { if (e.target === e.currentTarget && !this.props.loading) this.props.oncancel?.(); }}
+      >
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 10px; width: 100%; max-width: 440px; padding: 1.75rem; box-shadow: 0 16px 48px rgba(0,0,0,0.2);">
+
+          {/* Header */}
+          <div style="margin-bottom: 1rem;">
+            <div style="font-size: 1.05rem; font-weight: 700; color: var(--ink-black);">Delete {this.props.entityType}</div>
+            {this.props.entityName ? (
+              <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+                "{this.props.entityName}"
+              </div>
+            ) : null}
+          </div>
+
+          {/* Warning */}
+          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.875rem; margin-bottom: 1.25rem; font-size: 0.85rem; color: #b91c1c; line-height: 1.5;">
+            This record will be hidden from all views but preserved in the database.
+            Historical data (sales, stock movements) will remain intact.
+            You can restore it later from the audit log.
+          </div>
+
+          {/* Reason input */}
+          <div style="margin-bottom: 1.25rem;">
+            <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.4rem;">
+              Reason for deletion <span style="color: var(--danger-color);">*</span>
+            </label>
+            <textarea
+              placeholder="e.g. Discontinued, Duplicate entry, Entered in error..."
+              rows="3"
+              style="width: 100%; padding: 0.625rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.875rem; resize: vertical; box-sizing: border-box; font-family: inherit;"
+              oninput={(e: any) => { this.reason = e.target.value; this.scheduleUpdate?.(); }}
+            >{this.reason}</textarea>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+              Minimum 3 characters required. Reason is saved to the audit log.
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+            <button
+              class="aui-btn aui-btn--outline"
+              onclick={() => this.props.oncancel?.()}
+              disabled={this.props.loading}
+            >
+              Cancel
+            </button>
+            <button
+              class="aui-btn aui-btn--danger"
+              onclick={() => { if (canSubmit) this.props.onconfirm?.(this.reason.trim()); }}
+              disabled={!canSubmit}
+            >
+              {this.props.loading ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}

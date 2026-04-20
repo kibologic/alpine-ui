@@ -1,29 +1,110 @@
 import { SwissComponent } from '@kibologic/core';
-import { EmptyState } from '../feedback/EmptyState.uix';
-import { DataExport } from './DataExport.uix';
-import { Input } from '../primitives/Input.uix';
-import { Button } from '../primitives/Button.uix';
 
 component DataTable {
   props = {
-    columns: Array as () => Array<{ key: string; label: string; sortable?: boolean; width?: string }>,
+    id: String,
+    columns: Array as () => Array<{ key: string; label: string; sortable?: boolean; width?: string; align?: string; resizable?: boolean; render?: (val: any, row: any) => any }>,
     rows: Array as () => Array<Record<string, any>>,
     loading: Boolean,
-    selectable: Boolean,
-    onRowClick: Function as (row: Record<string, any>) => void,
-    onSelectionChange: Function as (selected: any[]) => void,
-    exportable: Boolean,
-    searchable: Boolean,
+    pageSize: Number as () => number,
+    filename: String,
     emptyTitle: String,
     emptyDescription: String,
+    onRowClick: Function as (row: any) => void,
+    onSelectionChange: Function as (rows: any[]) => void,
   };
 
+  // --- Search & Filter State ---
+  state { let query: string = ''; }
+  state { let showFilters: boolean = false; }
+  state { let columnFilters: Record<string, string> = {}; }
+  state { let filterCols: Record<string, boolean> = {}; }
+  state { let showFilterMenu: boolean = false; }
+  state { let debounceTimer: any = null; }
+
+  // --- Sort State ---
   state { let sortKey: string = ''; }
   state { let sortDir: string = 'asc'; }
-  state { let searchQuery: string = ''; }
-  state { let selectedIds: string[] = []; }
+
+  // --- Pagination State ---
   state { let currentPage: number = 1; }
-  state { let rowsPerPage: number = 10; }
+  state { let rowsPerPage: number = 20; }
+  state { let rowsPerPageOptions: number[] = [10, 20, 50, 100]; }
+
+  // --- Selection State ---
+  state { let selectedIds: Record<string, boolean> = {}; }
+
+  // --- Column Visibility State ---
+  state { let hiddenCols: Record<string, boolean> = {}; }
+  state { let showColumnMenu: boolean = false; }
+  state { let showActions: boolean = false; }
+
+  // --- Resize State ---
+  state { let resizingKey: string = ''; }
+  state { let resizeStartX: number = 0; }
+  state { let resizeStartW: number = 0; }
+  state { let colWidths: Record<string, string> = {}; }
+
+  mounted() {
+    this.rowsPerPage = this.props.pageSize || 20;
+    this.loadPersistedState();
+    document.addEventListener('click', (e: any) => {
+      const isInside = e.target.closest('.alp-dt-actions-wrap');
+      if (!isInside) {
+        if (this.showActions || this.showColumnMenu || this.showFilterMenu) {
+          this.showActions = false;
+          this.showColumnMenu = false;
+          this.showFilterMenu = false;
+          this.scheduleUpdate?.();
+        }
+      }
+    });
+  }
+
+  // ---- Persistence ----
+
+  getStorageKey() {
+    const tid = typeof localStorage !== 'undefined' ? (localStorage.getItem('alpine-tenant-id') || '0000') : '0000';
+    return `alp-dt-v4-${tid}-${this.props.id || 'default'}`;
+  }
+
+  saveState(extraData: any) {
+    try {
+      const existing = JSON.parse(localStorage.getItem(this.getStorageKey()) || '{}');
+      localStorage.setItem(this.getStorageKey(), JSON.stringify({ ...existing, ...extraData }));
+    } catch (_) {}
+  }
+
+  loadPersistedState() {
+    try {
+      const saved = localStorage.getItem(this.getStorageKey());
+      if (!saved) return;
+      const s = JSON.parse(saved);
+      if (s.sortKey) this.sortKey = s.sortKey;
+      if (s.sortDir) this.sortDir = s.sortDir;
+      if (s.rowsPerPage) this.rowsPerPage = s.rowsPerPage;
+      if (s.hiddenCols) this.hiddenCols = s.hiddenCols;
+      if (s.colWidths) this.colWidths = s.colWidths;
+    } catch (_) {}
+  }
+
+  // ---- Search Logic ----
+
+  handleSearch(val: string) {
+    this.query = val;
+    this.currentPage = 1;
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(() => this.scheduleUpdate?.(), 150);
+  }
+
+  handleColumnFilter(key: string, val: string) {
+    this.columnFilters = { ...this.columnFilters, [key]: val };
+    this.currentPage = 1;
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(() => this.scheduleUpdate?.(), 150);
+  }
+
+  // ---- Sort Logic ----
 
   handleSort(key: string) {
     if (this.sortKey === key) {
@@ -32,233 +113,458 @@ component DataTable {
       this.sortKey = key;
       this.sortDir = 'asc';
     }
-    this.scheduleUpdate?.();
-  }
-
-  handleSearch(e: Event) {
-    this.searchQuery = (e.target as HTMLInputElement).value;
     this.currentPage = 1;
+    this.saveState({ sortKey: this.sortKey, sortDir: this.sortDir });
     this.scheduleUpdate?.();
   }
 
-  handleSelectAll(e: Event, currentRows: Array<Record<string, any>>) {
-    const checked = (e.target as HTMLInputElement).checked;
-    if (checked) {
-      this.selectedIds = currentRows.map(r => r.id || r.sku || r.key || JSON.stringify(r));
-    } else {
-      this.selectedIds = [];
+  // ---- Filtered + Sorted Data ----
+
+  getProcessedRows() {
+    const rows = Array.isArray(this.props.rows) ? this.props.rows : [];
+    const q = (this.query || '').toLowerCase().trim();
+
+    let data = rows.filter(row => {
+      // Global search
+      if (q && !Object.values(row).some(v => v != null && String(v).toLowerCase().includes(q))) {
+        return false;
+      }
+      // Column filters
+      const filters = this.columnFilters;
+      for (const key in filters) {
+        const fv = (filters[key] || '').toLowerCase().trim();
+        if (!fv) continue;
+        const rv = row[key];
+        if (rv == null || !String(rv).toLowerCase().includes(fv)) return false;
+      }
+      return true;
+    });
+
+    if (this.sortKey) {
+      const dir = this.sortDir === 'asc' ? 1 : -1;
+      data = data.slice().sort((a, b) => {
+        const av = a[this.sortKey] ?? '';
+        const bv = b[this.sortKey] ?? '';
+        const na = Number(av); const nb = Number(bv);
+        if (!isNaN(na) && !isNaN(nb)) return dir * (na - nb);
+        const da = Date.parse(av); const db = Date.parse(bv);
+        if (!isNaN(da) && !isNaN(db)) return dir * (da - db);
+        return dir * String(av).localeCompare(String(bv), undefined, { numeric: true });
+      });
     }
-    this.scheduleUpdate?.();
-    if (this.props.onSelectionChange) this.props.onSelectionChange(this.selectedIds);
+
+    return data;
   }
 
-  handleSelectRow(e: Event, row: Record<string, any>) {
-    const checked = (e.target as HTMLInputElement).checked;
-    const rowId = row.id || row.sku || row.key || JSON.stringify(row);
-    if (checked) {
-      this.selectedIds = [...this.selectedIds, rowId];
+  // ---- Selection ----
+
+  isSelected(row: any) {
+    const id = row.id || row._id;
+    return id != null && !!this.selectedIds[String(id)];
+  }
+
+  toggleRow(row: any) {
+    const id = String(row.id || row._id);
+    const next = { ...this.selectedIds };
+    if (next[id]) { delete next[id]; } else { next[id] = true; }
+    this.selectedIds = next;
+    this.scheduleUpdate?.();
+  }
+
+  toggleAll(visibleRows: any[]) {
+    const allSelected = visibleRows.every(r => this.isSelected(r));
+    const next = { ...this.selectedIds };
+    if (allSelected) {
+      visibleRows.forEach(r => { const id = String(r.id || r._id); delete next[id]; });
     } else {
-      this.selectedIds = this.selectedIds.filter(id => id !== rowId);
+      visibleRows.forEach(r => { const id = String(r.id || r._id); next[id] = true; });
     }
-    this.scheduleUpdate?.();
-    if (this.props.onSelectionChange) this.props.onSelectionChange(this.selectedIds);
-  }
-
-  changePage(delta: number) {
-    this.currentPage += delta;
+    this.selectedIds = next;
     this.scheduleUpdate?.();
   }
 
-  changeRowsPerPage(e: Event) {
-    this.rowsPerPage = parseInt((e.target as HTMLSelectElement).value, 10);
-    this.currentPage = 1;
+  // ---- Column Visibility ----
+
+  toggleCol(key: string) {
+    const next = { ...this.hiddenCols };
+    if (next[key]) { delete next[key]; } else { next[key] = true; }
+    this.hiddenCols = next;
+    this.saveState({ hiddenCols: next });
     this.scheduleUpdate?.();
   }
+
+  // ---- Column Resize ----
+
+  startResize(e: MouseEvent, key: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.resizingKey = key;
+    this.resizeStartX = e.pageX;
+    const th = (e.target as HTMLElement).closest('th') as HTMLElement;
+    this.resizeStartW = th ? th.offsetWidth : 120;
+
+    const onMove = (me: MouseEvent) => {
+      if (!this.resizingKey) return;
+      const newW = Math.max(60, this.resizeStartW + (me.pageX - this.resizeStartX));
+      this.colWidths = { ...this.colWidths, [this.resizingKey]: `${newW}px` };
+      this.scheduleUpdate?.();
+    };
+
+    const onUp = () => {
+      this.saveState({ colWidths: this.colWidths });
+      this.resizingKey = '';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  // ---- Export ----
+
+  handleExport() {
+    const rows = this.props.rows || [];
+    const cols = (this.props.columns || []).filter(c => !this.hiddenCols[c.key]);
+    const header = cols.map(c => `"${c.label}"`).join(',');
+    const body = rows.map(r => cols.map(c => {
+      const v = r[c.key]; return JSON.stringify(v != null ? String(v) : '');
+    }).join(',')).join('\n');
+    const csv = header + '\n' + body;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = (this.props.filename || 'export') + '.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ---- Render ----
 
   render() {
-    const columns = Array.isArray(this.props.columns) ? this.props.columns : [];
-    const allRows = Array.isArray(this.props.rows) ? this.props.rows : [];
+    const allCols = Array.isArray(this.props.columns) ? this.props.columns : [];
+    const visCols = allCols.filter(c => !this.hiddenCols[c.key]);
     const isLoading = !!this.props.loading;
-    const isSelectable = !!this.props.selectable;
-    const isSearchable = !!this.props.searchable;
-    const isExportable = !!this.props.exportable;
 
-    // Filter
-    let processedRows = allRows;
-    if (isSearchable && this.searchQuery) {
-      const q = this.searchQuery.toLowerCase();
-      processedRows = processedRows.filter(row => {
-        return columns.some(col => String(row[col.key] || '').toLowerCase().includes(q));
-      });
-    }
+    const processed = this.getProcessedRows();
+    const totalRows = processed.length;
+    const totalPages = Math.max(1, Math.ceil(totalRows / this.rowsPerPage));
+    const safeCurrentPage = Math.min(this.currentPage, totalPages);
+    const start = (safeCurrentPage - 1) * this.rowsPerPage;
+    const pageRows = processed.slice(start, start + this.rowsPerPage);
 
-    // Sort
-    if (this.sortKey) {
-      processedRows = [...processedRows].sort((a, b) => {
-        const valA = a[this.sortKey];
-        const valB = b[this.sortKey];
-        if (valA < valB) return this.sortDir === 'asc' ? -1 : 1;
-        if (valA > valB) return this.sortDir === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
+    const allOnPageSelected = pageRows.length > 0 && pageRows.every(r => this.isSelected(r));
+    const selectedCount = Object.keys(this.selectedIds).length;
 
-    // Paginate
-    const totalRows = processedRows.length;
-    const totalPages = Math.ceil(totalRows / this.rowsPerPage);
-    const startIndex = (this.currentPage - 1) * this.rowsPerPage;
-    const paginatedRows = processedRows.slice(startIndex, startIndex + this.rowsPerPage);
-
-    const isEmpty = !isLoading && paginatedRows.length === 0;
-    const hasData = !isLoading && paginatedRows.length > 0;
-    const allSelected = hasData && paginatedRows.every(r => this.selectedIds.includes(r.id || r.sku || r.key || JSON.stringify(r)));
-    const colSpan = columns.length + (isSelectable ? 1 : 0);
+    const colCount = visCols.length + 1; // +1 for checkbox col
 
     return (
-      <div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
-          {isSearchable ? (
-            <Input
-              placeholder="Search..."
-              value={this.searchQuery}
-              oninput={(val) => { this.searchQuery = val; this.currentPage = 1; this.scheduleUpdate?.(); }}
-              style="width: 240px"
-            />
-          ) : <div></div>}
-          
-          {isExportable ? (
-            <DataExport 
-              data={processedRows} 
-              columns={columns.map(c => ({ key: c.key, label: c.label }))} 
-              filename="export" 
-            />
-          ) : null}
+      <div class="alp-dt">
+
+        <div class="alp-dt-toolbar">
+          <div class="alp-dt-toolbar-left">
+            <div class="alp-dt-search-wrap">
+              <svg class="alp-dt-search-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+              </svg>
+              <input
+                type="search"
+                class="alp-dt-search"
+                placeholder="Search…"
+                value={this.query || ''}
+                oninput={(e: any) => this.handleSearch(e.target.value)}
+              />
+            </div>
+            {selectedCount > 0 && (
+              <span class="alp-dt-selection-badge">{selectedCount} selected</span>
+            )}
+          </div>
+
+          <div class="alp-dt-toolbar-right">
+            <div class="alp-dt-actions-wrap" style="position:relative;">
+              <button 
+                class={`alp-dt-toolbar-btn ${this.showActions ? 'alp-dt-toolbar-btn--active' : ''}`}
+                onclick={() => { this.showActions = !this.showActions; this.scheduleUpdate?.(); }}
+              >
+                <span>Actions</span>
+                <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                  <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+              </button>
+
+              {this.showActions && (
+                <div class="alp-dt-actions-menu">
+                  <button
+                    class={`alp-dt-menu-item ${this.showFilters ? 'alp-dt-menu-item--active' : ''}`}
+                    onclick={() => { 
+                      this.showFilters = !this.showFilters; 
+                      if (!this.showFilters) { this.columnFilters = {}; this.filterCols = {}; }
+                      this.scheduleUpdate?.(); 
+                    }}
+                  >
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                      <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L13 10.414V15a1 1 0 01-.553.894l-4 2A1 1 0 017 17v-6.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+                    </svg>
+                    <span>{this.showFilters ? 'Disable Advanced Filtering' : 'Enable Advanced Filtering'}</span>
+                  </button>
+
+                  <div class="alp-dt-menu-divider"></div>
+
+                  <button
+                    class={`alp-dt-menu-item ${this.showColumnMenu ? 'alp-dt-menu-item--open' : ''}`}
+                    onclick={() => { 
+                      this.showColumnMenu = !this.showColumnMenu; 
+                      this.showFilterMenu = false;
+                      this.scheduleUpdate?.(); 
+                    }}
+                  >
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                      <path d="M5 4a1 1 0 00-2 0v7.268a2 2 0 000 3.464V16a1 1 0 102 0v-1.268a2 2 0 000-3.464V4zM11 4a1 1 0 10-2 0v1.268a2 2 0 000 3.464V16a1 1 0 102 0V8.732a2 2 0 000-3.464V4zM16 3a1 1 0 011 1v7.268a2 2 0 010 3.464V16a1 1 0 11-2 0v-1.268a2 2 0 010-3.464V4a1 1 0 011-1z" />
+                    </svg>
+                    <span>Column Visibility</span>
+                    <span class="alp-dt-menu-arrow">›</span>
+                  </button>
+
+                  <button
+                    class={`alp-dt-menu-item ${this.showFilterMenu ? 'alp-dt-menu-item--open' : ''}`}
+                    disabled={!this.showFilters}
+                    onclick={() => { 
+                      this.showFilterMenu = !this.showFilterMenu; 
+                      this.showColumnMenu = false;
+                      this.scheduleUpdate?.(); 
+                    }}
+                  >
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                      <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L13 10.414V15a1 1 0 01-.553.894l-4 2A1 1 0 017 17v-6.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+                    </svg>
+                    <span>Filter Configuration</span>
+                    <span class="alp-dt-menu-arrow">›</span>
+                  </button>
+
+                  <div class="alp-dt-menu-divider"></div>
+
+                  <button
+                    class="alp-dt-menu-item"
+                    onclick={() => { this.handleExport(); this.showActions = false; this.scheduleUpdate?.(); }}
+                  >
+                    <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+                      <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                    <span>Export CSV</span>
+                  </button>
+                </div>
+              )}
+
+              {this.showColumnMenu && (
+                <div class="alp-col-menu" onclick={(e: any) => e.stopPropagation()}>
+                  <div class="alp-col-menu-header">
+                    <span>Column Visibility</span>
+                    <button class="alp-col-menu-close" onclick={(e: any) => { e.stopPropagation(); this.showColumnMenu = false; this.scheduleUpdate?.(); }}>×</button>
+                  </div>
+                  <div class="alp-col-menu-list">
+                    {allCols.map(col => (
+                      <label class="alp-col-menu-item" onclick={(e: any) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={!this.hiddenCols[col.key]}
+                          onchange={(e: any) => { 
+                            e.stopPropagation();
+                            this.toggleCol(col.key); 
+                            this.scheduleUpdate?.(); 
+                          }}
+                        />
+                        <span>{col.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {this.showFilterMenu && (
+                <div class="alp-col-menu" onclick={(e: any) => e.stopPropagation()}>
+                  <div class="alp-col-menu-header">
+                    <span>Select what to filter</span>
+                    <button class="alp-col-menu-close" onclick={(e: any) => { e.stopPropagation(); this.showFilterMenu = false; this.scheduleUpdate?.(); }}>×</button>
+                  </div>
+                  <div class="alp-col-menu-list">
+                    {visCols.map(col => (
+                      <label class="alp-col-menu-item" onclick={(e: any) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={this.filterCols[col.key] !== false}
+                          onchange={(e: any) => { 
+                            e.stopPropagation();
+                            const next = { ...this.filterCols };
+                            next[col.key] = this.filterCols[col.key] === false ? true : false;
+                            this.filterCols = next;
+                            this.scheduleUpdate?.(); 
+                          }}
+                        />
+                        <span>{col.label} Filter</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div class="aui-table-container">
-          <table class="aui-table">
+        <div class="alp-dt-table-wrap">
+          <table class="alp-dt-table">
             <thead>
-              <tr>
-                {isSelectable ? (
-                  <th style="width: 40px; text-align: center;">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onchange={(e: Event) => this.handleSelectAll(e, paginatedRows)}
-                    />
-                  </th>
-                ) : null}
-                {columns.map(col => (
-                  <th
-                    style={col.width ? `width: ${col.width}` : ''}
-                    onclick={() => col.sortable && this.handleSort(col.key)}
-                  >
-                    {col.label}
-                    {col.sortable ? (
-                      <span class="aui-sort-icon">
-                        {this.sortKey === col.key ? (this.sortDir === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
-                    ) : null}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+              <tr class="alp-dt-head-row">
+                {/* Checkbox header */}
+                <th class="alp-dt-th alp-dt-th--check">
+                  <input
+                    type="checkbox"
+                    class="alp-dt-checkbox"
+                    checked={allOnPageSelected}
+                    onchange={() => this.toggleAll(pageRows)}
+                  />
+                </th>
 
-            {isLoading ? (
-              <tbody>
-                {[0, 1, 2, 3, 4].map(() => (
-                  <tr class="aui-table-row">
-                    <td colspan={colSpan} style="padding: 1rem;">
-                      <div style="height: 20px; background: var(--erp-surface-3); border-radius: var(--radius-sm); animation: pulse 1.5s infinite;"></div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            ) : null}
-
-            {isEmpty ? (
-              <tbody>
-                <tr>
-                  <td colspan={colSpan} style="padding: 0;">
-                    <EmptyState 
-                      icon="📁" 
-                      title={this.props.emptyTitle || "No data found"} 
-                      description={this.props.emptyDescription || (this.searchQuery ? "Try adjusting your search query." : "There are no records to display.")} 
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            ) : null}
-
-            {hasData ? (
-              <tbody>
-                {paginatedRows.map(row => {
-                  const rowId = row.id || row.sku || row.key || JSON.stringify(row);
-                  const isSelected = this.selectedIds.includes(rowId);
+                {visCols.map(col => {
+                  const colW = this.colWidths[col.key] || col.width || '';
+                  const isSorted = this.sortKey === col.key;
                   return (
-                    <tr 
-                      class={`aui-table-row${isSelected ? ' aui-table-row--selected' : ''}`}
-                      onclick={() => this.props.onRowClick && this.props.onRowClick(row)}
-                      style={this.props.onRowClick ? 'cursor: pointer;' : ''}
+                    <th
+                      class={`alp-dt-th ${isSorted ? 'alp-dt-th--sorted' : ''} ${col.align ? 'alp-dt-th--' + col.align : ''}`}
+                      style={colW ? `width: ${colW}; min-width: ${colW}` : ''}
                     >
-                      {isSelectable ? (
-                        <td style="text-align: center;" onclick={(e: Event) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onchange={(e: Event) => this.handleSelectRow(e, row)}
-                          />
-                        </td>
-                      ) : null}
-                      {columns.map(col => (
-                        <td>
-                          {col.render ? col.render(row[col.key], row) : (row[col.key] !== undefined && row[col.key] !== null ? String(row[col.key]) : '—')}
-                        </td>
-                      ))}
-                    </tr>
+                      <div class="alp-dt-th-inner" onclick={() => this.handleSort(col.key)}>
+                        <span class="alp-dt-th-label">{col.label}</span>
+                        <span class={`alp-dt-sort-icon ${isSorted ? 'alp-dt-sort-icon--active' : ''}`}>
+                          {isSorted ? (this.sortDir === 'asc' ? '↑' : '↓') : '↕'}
+                        </span>
+                      </div>
+                      <div
+                        class="alp-dt-resizer"
+                        onmousedown={(e: MouseEvent) => this.startResize(e, col.key)}
+                        title="Drag to resize"
+                      ></div>
+                    </th>
                   );
                 })}
-              </tbody>
-            ) : null}
+              </tr>
+
+              {this.showFilters && (
+                <tr class="alp-dt-filter-row">
+                  <th class="alp-dt-th alp-dt-th--check"></th>
+                  {visCols.map(col => {
+                    // Auto-detect unique values for the dropdown
+                    const rows = this.props.rows || [];
+                    const uniqueValues = Array.from(new Set(rows.map(r => r[col.key]).filter(v => v != null && v !== '')));
+                    const hasManyValues = uniqueValues.length > 20; // If too many, maybe a text input is better? But user asked for dropdown "as per the column".
+                    
+                    return (
+                      <th class="alp-dt-filter-cell">
+                        {this.filterCols[col.key] !== false && (
+                          <select
+                            class="alp-dt-filter-select"
+                            value={this.columnFilters[col.key] || ''}
+                            onchange={(e: any) => this.handleColumnFilter(col.key, e.target.value)}
+                          >
+                            <option value="">All {col.label}</option>
+                            {uniqueValues.sort().map(val => (
+                              <option value={String(val)}>{String(val)}</option>
+                            ))}
+                          </select>
+                        )}
+                      </th>
+                    );
+                  })}
+                </tr>
+              )}
+            </thead>
+
+            <tbody>
+              {isLoading ? (
+                [0,1,2,3,4,5].map(() => (
+                  <tr class="alp-dt-row">
+                    <td class="alp-dt-td alp-dt-td--check"><span class="alp-dt-skeleton alp-dt-skeleton--sm"></span></td>
+                    {visCols.map(() => <td class="alp-dt-td"><span class="alp-dt-skeleton"></span></td>)}
+                  </tr>
+                ))
+              ) : pageRows.length === 0 ? (
+                <tr>
+                  <td class="alp-dt-empty" colspan={colCount}>
+                    <div class="alp-dt-empty-inner">
+                      <div class="alp-dt-empty-icon">📂</div>
+                      <div class="alp-dt-empty-title">{this.props.emptyTitle || 'No data found'}</div>
+                      <div class="alp-dt-empty-desc">{this.props.emptyDescription || 'There are no records to display.'}</div>
+                    </div>
+                  </td>
+                </tr>
+              ) : pageRows.map(row => {
+                const sel = this.isSelected(row);
+                return (
+                  <tr
+                    class={`alp-dt-row ${sel ? 'alp-dt-row--selected' : ''} ${this.props.onRowClick ? 'alp-dt-row--clickable' : ''}`}
+                    onclick={() => this.props.onRowClick && this.props.onRowClick(row)}
+                  >
+                    <td class="alp-dt-td alp-dt-td--check" onclick={(e: Event) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        class="alp-dt-checkbox"
+                        checked={sel}
+                        onchange={() => this.toggleRow(row)}
+                      />
+                    </td>
+                    {visCols.map(col => (
+                      <td class={`alp-dt-td ${col.align ? 'alp-dt-td--' + col.align : ''}`}>
+                        {col.render ? col.render(row[col.key], row) : (row[col.key] != null ? String(row[col.key]) : '—')}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
           </table>
         </div>
 
-        {hasData ? (
-          <div class="aui-pagination">
-            <div style="color: var(--erp-text-muted); font-size: 0.875rem;">
-              Showing {startIndex + 1}-{Math.min(startIndex + this.rowsPerPage, totalRows)} of {totalRows}
-            </div>
-            
-            <div style="display: flex; align-items: center; gap: 1rem;">
-              <select 
-                class="aui-input" 
-                style="padding: 0.25rem; width: auto;"
-                onchange={(e: Event) => this.changeRowsPerPage(e)}
-              >
-                {[10, 25, 50, 100].map(val => (
-                  <option value={val.toString()} selected={this.rowsPerPage === val}>{val} / page</option>
-                ))}
-              </select>
-              
-              <div style="display: flex; gap: 0.25rem;">
-                <Button 
-                  label="Prev" 
-                  variant="outline"
-                  size="sm"
-                  disabled={this.currentPage === 1}
-                  onclick={() => this.changePage(-1)}
-                />
-                <Button 
-                  label="Next" 
-                  variant="outline"
-                  size="sm"
-                  disabled={this.currentPage >= totalPages}
-                  onclick={() => this.changePage(1)}
-                />
+        {totalPages > 1 && (
+          <div class="alp-dt-pagination">
+            <div class="alp-dt-pagination-left">
+              <div class="alp-dt-pagination-info">
+                {start + 1}–{Math.min(start + this.rowsPerPage, totalRows)} of {totalRows}
+              </div>
+              <div class="alp-dt-rows-per-page">
+                <span>Rows per page:</span>
+                <select 
+                  class="alp-dt-select-sm" 
+                  value={this.rowsPerPage} 
+                  onchange={(e: any) => { 
+                    this.rowsPerPage = Number(e.target.value); 
+                    this.currentPage = 1; 
+                    this.saveState({ rowsPerPage: this.rowsPerPage });
+                    this.scheduleUpdate?.(); 
+                  }}
+                >
+                  {this.rowsPerPageOptions.map(opt => <option value={opt}>{opt}</option>)}
+                </select>
               </div>
             </div>
+            <div class="alp-dt-pagination-controls">
+              <button class="alp-dt-page-btn" disabled={safeCurrentPage === 1} onclick={() => { this.currentPage = safeCurrentPage - 1; this.scheduleUpdate?.(); }}>←</button>
+              {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+                let p = i + 1;
+                if (totalPages > 7 && safeCurrentPage > 4) {
+                  p = safeCurrentPage - 3 + i;
+                  if (p + (7 - i - 1) > totalPages) p = totalPages - 6 + i;
+                }
+                if (p < 1 || p > totalPages) return null;
+                return (
+                  <button
+                    class={`alp-dt-page-btn ${safeCurrentPage === p ? 'alp-dt-page-btn--active' : ''}`}
+                    onclick={() => { this.currentPage = p; this.scheduleUpdate?.(); }}
+                  >{p}</button>
+                );
+              })}
+              <button class="alp-dt-page-btn" disabled={safeCurrentPage === totalPages} onclick={() => { this.currentPage = safeCurrentPage + 1; this.scheduleUpdate?.(); }}>→</button>
+            </div>
           </div>
-        ) : null}
+        )}
+
       </div>
     );
   }

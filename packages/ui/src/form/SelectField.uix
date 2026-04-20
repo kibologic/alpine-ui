@@ -2,129 +2,40 @@ import { SwissComponent } from '@kibologic/core';
 
 component SelectField {
   props = {
-    label: String,
+    options: Array as () => Array<{ value: string; label: string; disabled?: boolean }>,
     value: String,
-    options: Array as () => Array<{ value: string; label: string }>,
-    searchable: Boolean,
-    required: Boolean,
-    error: String,
-    disabled: Boolean,
     placeholder: String,
+    disabled: Boolean,
+    error: String,
     onchange: Function as (value: string) => void,
   };
 
-  state { let isOpen: boolean = false; }
-  state { let searchQuery: string = ''; }
-  state { let internalValue: string = ''; }
-
-  mount {
-    this.internalValue = this.props.value || '';
-  }
-
-  get selectedLabel() {
-    const options = Array.isArray(this.props.options) ? this.props.options : [];
-    const selected = options.find(o => o.value === this.internalValue);
-    return selected ? selected.label : '';
-  }
-
-  toggleOpen() {
-    if (this.props.disabled) return;
-    this.isOpen = !this.isOpen;
-    if (this.isOpen) this.searchQuery = '';
-    this.scheduleUpdate?.();
-  }
-
-  close() {
-    this.isOpen = false;
-    this.scheduleUpdate?.();
-  }
-
-  selectOption(val: string) {
-    this.internalValue = val;
-    this.isOpen = false;
-    this.scheduleUpdate?.();
-    if (this.props.onchange) this.props.onchange(val);
-  }
-
-  handleSearch(e: Event) {
-    this.searchQuery = (e.target as HTMLInputElement).value;
-    this.scheduleUpdate?.();
-  }
-
   render() {
-    const isDisabled = !!this.props.disabled;
-    const hasError = !!this.props.error;
-    const isRequired = !!this.props.required;
-    const isSearchable = !!this.props.searchable;
     const options = Array.isArray(this.props.options) ? this.props.options : [];
-    
-    const filteredOptions = isSearchable && this.searchQuery
-      ? options.filter(o => o.label.toLowerCase().includes(this.searchQuery.toLowerCase()))
-      : options;
-
+    const hasError = !!this.props.error;
     return (
-      <div class={`aui-field${isDisabled ? ' aui-field--disabled' : ''}${hasError ? ' aui-field--error' : ''}`} style="position: relative;">
-        {this.props.label ? (
-          <label class="aui-label">
-            {this.props.label}
-            {isRequired ? <span style="color: var(--ink-black); margin-left: 2px;">*</span> : null}
-          </label>
-        ) : null}
-        
-        <div 
-          class="aui-input-wrap" 
-          style={`cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; justify-content: space-between; padding-right: 0.5rem;`}
-          onclick={() => this.toggleOpen()}
+      <div class={`alp-input-wrap alp-input-wrap--md`}>
+        <select
+          class={`alp-input alp-input--md${hasError ? ' alp-input--error' : ''}`}
+          disabled={!!this.props.disabled}
+          onchange={(e: Event) => {
+            if (this.props.onchange) this.props.onchange((e.target as HTMLSelectElement).value);
+          }}
         >
-          <div style="padding: 0.5rem; color: var(--ink-black); flex: 1; user-select: none;">
-            {this.selectedLabel || this.props.placeholder || 'Select...'}
-          </div>
-          <span style="color: var(--dusty-denim); font-size: 0.8em;">▼</span>
-        </div>
-        
-        {hasError ? (
-          <span class="aui-error-msg">{this.props.error}</span>
-        ) : null}
-        
-        {this.isOpen ? (
-          <div style="position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px; background: white; border: 1px solid var(--dusty-denim); border-radius: 4px; box-shadow: 0 4px 12px rgba(13,27,42,0.1); z-index: 100; max-height: 250px; overflow-y: auto;">
-            {isSearchable ? (
-              <div style="padding: 0.5rem; border-bottom: 1px solid var(--dusty-denim); position: sticky; top: 0; background: white;">
-                <input 
-                  type="text" 
-                  class="aui-input" 
-                  style="width: 100%; border: 1px solid var(--dusty-denim); border-radius: 2px; padding: 0.25rem 0.5rem;" 
-                  placeholder="Search..." 
-                  value={this.searchQuery}
-                  oninput={(e: Event) => this.handleSearch(e)}
-                  onclick={(e: Event) => e.stopPropagation()}
-                />
-              </div>
-            ) : null}
-            
-            {filteredOptions.length === 0 ? (
-              <div style="padding: 0.75rem; color: var(--dusty-denim); text-align: center;">No options found</div>
-            ) : (
-              filteredOptions.map(opt => {
-                const isSelected = opt.value === this.internalValue;
-                return (
-                  <div 
-                    style={`padding: 0.5rem 0.75rem; cursor: pointer; background: ${isSelected ? 'var(--alabaster-grey)' : 'transparent'}; color: ${isSelected ? 'var(--ink-black)' : 'var(--prussian-blue)'}; font-weight: ${isSelected ? '600' : '400'};`}
-                    onclick={(e: Event) => { e.stopPropagation(); this.selectOption(opt.value); }}
-                    onmouseover={(e: Event) => {
-                      if (!isSelected) (e.target as HTMLElement).style.backgroundColor = 'var(--alabaster-grey)';
-                    }}
-                    onmouseout={(e: Event) => {
-                      if (!isSelected) (e.target as HTMLElement).style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    {opt.label}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        ) : null}
+          {this.props.placeholder ? (
+            <option value="" disabled={true} selected={!this.props.value}>{this.props.placeholder}</option>
+          ) : null}
+          {options.map(opt => (
+            <option
+              value={opt.value}
+              selected={opt.value === this.props.value}
+              disabled={!!opt.disabled}
+            >
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {hasError ? <span class="alp-field-error">{this.props.error}</span> : null}
       </div>
     );
   }
