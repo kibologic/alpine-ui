@@ -1,6 +1,6 @@
 import { SwissComponent } from '@kibologic/core';
 import { RecordHeader } from '../layout/RecordHeader.uix';
-import { Button } from '../primitives/Button.uix';
+import { Button } from '../form/Button.uix';
 import { Tabs } from '../layout/Tabs.uix';
 
 /**

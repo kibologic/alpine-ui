@@ -1,9 +1,9 @@
 import { SwissComponent } from '@kibologic/core';
-import { StatCard } from '../widgets/StatCard.uix';
+import { KpiCard } from '../widgets/KpiCard.uix';
 import { SearchBar } from '../widgets/SearchBar.uix';
 import { FilterMenu } from '../widgets/FilterMenu.uix';
 import { DataTable } from '../data/DataTable.uix';
-import { Button } from '../primitives/Button.uix';
+import { Button } from '../form/Button.uix';
 
 /**
  * ListView Engine
@@ -40,7 +40,7 @@ component ListView {
                 {/* 1. Stat Layer */}
                 {stats.length > 0 && (
                     <div class="aui-view-stats">
-                        {stats.map(s => <StatCard {...s} />)}
+                        {stats.map(s => <KpiCard {...s} />)}
                     </div>
                 )}
 
