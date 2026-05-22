@@ -1638,7 +1638,6 @@
   transform: translateX(100%);
   transition: transform var(--duration-base) var(--ease-default);
   overflow: hidden;
-  box-shadow: var(--shadow-lg);
 }
 
 .alp-side-panel--open { transform: translateX(0); }
