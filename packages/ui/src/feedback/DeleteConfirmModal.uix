@@ -18,7 +18,7 @@ import { SwissComponent } from '@kibologic/core';
  *     entityName={this.deletingProduct?.name}
  *     loading={this.deleting}
  *     onconfirm={(reason) => this.confirmDelete(reason)}
- *     oncancel={() => { this.showDeleteModal = false; this.scheduleUpdate?.(); }}
+ *     oncancel={() => { this.showDeleteModal = false }}
  *   />
  */
 component DeleteConfirmModal {
@@ -38,8 +38,7 @@ component DeleteConfirmModal {
   }
 
   onOpen() {
-    this.reason = '';
-    this.scheduleUpdate?.();
+    this.reason = ''
   }
 
   render() {
@@ -80,7 +79,7 @@ component DeleteConfirmModal {
               placeholder="e.g. Discontinued, Duplicate entry, Entered in error..."
               rows="3"
               style="width: 100%; padding: 0.625rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.875rem; resize: vertical; box-sizing: border-box; font-family: inherit;"
-              oninput={(e: any) => { this.reason = e.target.value; this.scheduleUpdate?.(); }}
+              oninput={(e: any) => { this.reason = e.target.value }}
             >{this.reason}</textarea>
             <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
               Minimum 3 characters required. Reason is saved to the audit log.

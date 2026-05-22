@@ -21,7 +21,6 @@ component Toast {
 
   close() {
     this.visible = false;
-    this.scheduleUpdate?.();
     if (this.props.onclose) {
       setTimeout(() => this.props.onclose(), 300); // Wait for transition if any
     }

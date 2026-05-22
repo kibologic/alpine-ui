@@ -19,7 +19,6 @@ component TextField {
   handleInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
     this.internalValue = val;
-    this.scheduleUpdate?.();
     if (this.props.onchange) this.props.onchange(val);
   }
 

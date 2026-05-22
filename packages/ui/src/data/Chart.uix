@@ -2,64 +2,76 @@ import { SwissComponent } from '@kibologic/core';
 
 component Chart {
   props = {
-    type: String,      // 'bar' | 'line' | 'pie' | 'area'
-    data: Object,      // ECharts option object
-    height: { type: String, default: '300px' },
-    theme: String,     // 'dark' | 'light'
+    data: Object,
+    height: String,
+    theme: String,
+    style: String,
   };
 
-  state { let chart: any = null; }
+  state { let chartId: string = `alp-chart-${Math.random().toString(36).slice(2, 9)}`; }
+  state { let failed: boolean = false; }
+
+  _chart: any = null;
+  _resizeHandler: any = null;
 
   async mounted() {
-    // Load ECharts from CDN if not already loaded
     if (!window.echarts) {
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('ECharts CDN failed'));
+          document.head.appendChild(script);
+        });
+      } catch (_) {
+        this.failed = true;
+        return;
+      }
     }
     this.initChart();
   }
 
   initChart() {
-    const el = this.refs.chartContainer;
-    if (!el) return;
-
-    // Detect theme from data-theme if not provided
-    const theme = this.theme || document.documentElement.getAttribute('data-theme') || 'light';
     if (!window.echarts) return;
-    this.chart = window.echarts.init(el, theme);
-    if (this.data) {
-      this.chart.setOption(this.data);
-    }
-
-    // Handle resize
-    window.addEventListener('resize', () => this.chart?.resize());
+    const el = document.getElementById(this.chartId);
+    if (!el) return;
+    const theme = this.props.theme || document.documentElement.getAttribute('data-theme') || 'dark';
+    this._chart = window.echarts.init(el, theme);
+    if (this.props.data) this._chart.setOption(this.props.data);
+    this._resizeHandler = () => this._chart?.resize();
+    window.addEventListener('resize', this._resizeHandler);
   }
 
   unmounted() {
-    if (this.chart) {
-      this.chart.dispose();
-      this.chart = null;
-    }
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+    if (this._chart) { this._chart.dispose(); this._chart = null; }
   }
 
   async updated() {
-    if (this.chart && this.data) {
-      this.chart.setOption(this.data);
-    } else if (!this.chart && this.data && this.refs.chartContainer && window.echarts) {
+    if (this._chart && this.props.data) {
+      this._chart.setOption(this.props.data, { notMerge: false });
+    } else if (!this._chart && this.props.data && !this.failed && window.echarts) {
       this.initChart();
     }
   }
 
   render() {
+    const h = this.props.height || '300px';
+    const s = this.props.style || '';
+
+    if (this.failed) {
+      return (
+        <div style={`width:100%;height:${h};display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);font-size:var(--font-size-xs);${s}`}>
+          Chart unavailable
+        </div>
+      );
+    }
+
     return (
-      <div 
-        ref="chartContainer" 
-        style={{ width: '100%', height: this.height }}
+      <div
+        id={this.chartId}
+        style={`width:100%;height:${h};${s}`}
       ></div>
     );
   }

@@ -38,7 +38,6 @@ component CurrencyField {
   handleChange(val: string) {
     // While typing — store raw string, notify parent
     this.displayValue = val;
-    this.scheduleUpdate?.();
     const num = this.parseCurrency(val);
     if (this.props.onchange) this.props.onchange(num);
   }
@@ -50,15 +49,13 @@ component CurrencyField {
     if (num !== null) {
       this.displayValue = String(num);
     }
-    this.scheduleUpdate?.();
   }
 
   handleBlur() {
     this.isFocused = false;
     // Re-format on blur
     const num = this.parseCurrency(this.displayValue);
-    this.displayValue = num !== null ? this.formatCurrency(num) : '';
-    this.scheduleUpdate?.();
+    this.displayValue = num !== null ? this.formatCurrency(num) : ''
   }
 
   render() {

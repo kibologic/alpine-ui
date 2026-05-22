@@ -18,8 +18,7 @@ component FilterMenu {
 
     toggle(e: Event) {
         e.stopPropagation();
-        this.isOpen = !this.isOpen;
-        this.scheduleUpdate?.();
+        this.isOpen = !this.isOpen
     }
 
     toggleOption(val: string) {
