@@ -1,0 +1,36 @@
+import { SwissComponent } from '@kibologic/core';
+
+component KpiCard {
+  props = {
+    label: String,
+    value: String,
+    delta: String,
+    deltaType: String,
+    icon: String,
+    renderSparkLine: Function as () => any,
+  };
+
+  render() {
+    const deltaType = this.props.deltaType || 'neutral';
+    const { label, value, delta, icon } = this.props;
+
+    return (
+      <div class="alp-kpi-card">
+        <div class="alp-kpi-header">
+          <span class="alp-kpi-label">{label}</span>
+          {icon && <span class="alp-kpi-icon" innerHTML={icon}></span>}
+        </div>
+        <div class="alp-kpi-value">{value ?? '—'}</div>
+        {delta && (
+          <div class={`alp-kpi-delta alp-kpi-delta--${deltaType}`}>
+            {deltaType === 'positive' ? '↑' : deltaType === 'negative' ? '↓' : ''}
+            {' '}{delta}
+          </div>
+        )}
+        {this.props.renderSparkLine && (
+          <div class="alp-kpi-sparkline">{this.props.renderSparkLine()}</div>
+        )}
+      </div>
+    );
+  }
+}

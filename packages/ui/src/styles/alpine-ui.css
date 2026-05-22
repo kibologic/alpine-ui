@@ -1607,101 +1607,195 @@
 
 
 /* ============================================================
-   Stock Take Page Styles
+   SidePanel
    ============================================================ */
 
-.st-layout {
-  display: flex;
-  height: calc(100vh - 56px);
-  overflow: hidden;
+.alp-side-panel-container {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  pointer-events: none;
 }
-.st-products {
+
+.alp-side-panel-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  pointer-events: all;
+  animation: alp-fade-in var(--duration-base) var(--ease-default);
+}
+
+.alp-side-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  background: var(--color-bg-surface);
+  border-left: 1px solid var(--color-bg-border);
+  display: flex;
+  flex-direction: column;
+  pointer-events: all;
+  transform: translateX(100%);
+  transition: transform var(--duration-base) var(--ease-default);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.alp-side-panel--open { transform: translateX(0); }
+
+.alp-side-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-bg-border);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+
+.alp-side-panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: 1.5rem 2rem;
-  border-right: 1px solid var(--color-border);
-}
-.st-sidebar-row strong {
-  color: var(--color-text-primary);
-  font-weight: 600;
-}
-.st-progress-bar {
-  height: 6px;
-  background-color: var(--color-bg-elevated);
-  border-radius: 3px;
-  overflow: hidden;
+  padding: 20px;
 }
 
-.st-progress-fill {
-  height: 100%;
-  background-color: var(--color-accent);
-  transition: width 0.3s var(--ease-default);
+@keyframes alp-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-/* Product row card */
-.st-product-card {
-  background-color: var(--color-bg-surface);
-  border: 1px solid var(--color-border);
+
+/* ============================================================
+   KpiCard
+   ============================================================ */
+
+.alp-kpi-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-bg-border);
   border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4);
-  margin-bottom: var(--space-2);
-  display: grid;
-  grid-template-columns: 110px 1fr 80px 80px 120px 120px 40px;
-  gap: var(--space-4);
-  align-items: center;
-  transition: transform var(--duration-fast), box-shadow var(--duration-fast);
-}
-.st-product-card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-  border-color: var(--color-border-strong);
-}
-.st-product-card--counted {
-  border-left: 3px solid var(--color-accent);
-}
-.st-product-card--variance {
-  border-left: 3px solid var(--color-status-error);
-}
-.st-sku {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-}
-.st-name {
-  font-weight: 500;
-  color: var(--color-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.st-system-qty {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  text-align: center;
-}
-.st-qty-input {
-  width: 80px;
-  text-align: center;
-  font-size: var(--text-md);
-  font-weight: 700;
-  background-color: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-2);
-  color: var(--color-text-primary);
-  outline: none;
-}
-.st-qty-input:focus {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-glow);
-}
-.st-status {
-  font-size: var(--text-lg);
-  text-align: center;
-}
-.st-filters {
+  padding: 16px 20px;
   display: flex;
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.alp-kpi-header {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.alp-kpi-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.alp-kpi-icon {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.alp-kpi-value {
+  font-size: 1.5rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: 1.1;
+}
+
+.alp-kpi-delta {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  margin-top: 2px;
+}
+
+.alp-kpi-delta--positive { color: var(--color-status-success); }
+.alp-kpi-delta--negative { color: var(--color-status-error); }
+.alp-kpi-delta--warning  { color: var(--color-status-warning); }
+.alp-kpi-delta--neutral  { color: var(--color-text-muted); }
+
+.alp-kpi-sparkline { margin-top: 8px; }
+
+
+/* ============================================================
+   WidgetContainer
+   ============================================================ */
+
+.alp-widget {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+
+.alp-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-bg-border);
+  flex-shrink: 0;
+}
+
+.alp-widget-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+}
+
+.alp-widget-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.alp-widget-body {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.alp-widget-loading,
+.alp-widget-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.alp-widget-error { color: var(--color-status-error); }
+
+
+/* ============================================================
+   DashboardGrid
+   ============================================================ */
+
+.alp-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--dash-cols, 12), 1fr);
+  width: 100%;
+}
+
+.alp-dash-grid--editable .alp-dash-cell {
+  outline: 1px dashed var(--color-bg-border);
+  outline-offset: -2px;
+}
+
+.alp-dash-cell {
+  min-width: 0;
+  min-height: 0;
 }
