@@ -1,4 +1,4 @@
-import { SwissComponent } from '@kibologic/core';
+import { SwissComponent } from '@swissjs/core';
 import { KpiCard } from '../widgets/KpiCard.uix';
 import { SearchBar } from '../widgets/SearchBar.uix';
 import { FilterMenu } from '../widgets/FilterMenu.uix';

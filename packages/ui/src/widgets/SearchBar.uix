@@ -1,4 +1,4 @@
-import { SwissComponent } from '@kibologic/core';
+import { SwissComponent } from '@swissjs/core';
 import { Input } from '../primitives/Input.uix';
 import { IconButton } from '../primitives/IconButton.uix';
 
