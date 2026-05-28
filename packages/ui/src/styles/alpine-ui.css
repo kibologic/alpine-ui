@@ -1798,3 +1798,365 @@
   min-width: 0;
   min-height: 0;
 }
+
+/* ============================================================
+   WorkspaceHeader
+   ============================================================ */
+
+.alp-ws-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--space-5);
+  height: 46px;
+  background: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.alp-ws-hdr-left {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+}
+
+.alp-ws-hdr-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alp-ws-hdr-sub {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alp-ws-hdr-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.alp-ws-hdr-drop {
+  position: relative;
+}
+
+.alp-ws-hdr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  white-space: nowrap;
+}
+
+.alp-ws-hdr-btn:hover {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.alp-ws-hdr-btn--open {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: var(--color-sidebar-active, rgba(99,102,241,.08));
+}
+
+.alp-ws-hdr-btn--accent {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+  border-color: var(--color-accent);
+}
+
+.alp-ws-hdr-btn--accent:hover {
+  background: var(--color-accent-hover);
+  color: var(--color-text-inverse);
+}
+
+.alp-ws-hdr-btn--accent.alp-ws-hdr-btn--open {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+  color: var(--color-text-inverse);
+}
+
+.alp-ws-hdr-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 160px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+  z-index: 200;
+  padding: var(--space-1) 0;
+  overflow: hidden;
+}
+
+.alp-ws-hdr-panel--right {
+  left: auto;
+  right: 0;
+}
+
+.alp-ws-hdr-panel-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast);
+  white-space: nowrap;
+}
+
+.alp-ws-hdr-panel-item:hover {
+  background: var(--color-bg-border);
+  color: var(--color-text-primary);
+}
+
+.alp-ws-hdr-panel-item--active {
+  color: var(--color-accent);
+  font-weight: var(--font-weight-medium);
+}
+
+.alp-ws-hdr-panel-item--primary {
+  color: var(--color-accent);
+}
+
+.alp-ws-hdr-panel-item--primary:hover {
+  background: var(--color-sidebar-active, rgba(99,102,241,.08));
+  color: var(--color-accent);
+}
+
+.alp-ws-hdr-panel-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.alp-ws-hdr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-fast);
+  flex-shrink: 0;
+}
+
+.alp-ws-hdr-icon-btn:hover:not(:disabled) {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+.alp-ws-hdr-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.alp-ws-hdr-icon-btn--spin svg {
+  animation: alp-ws-spin 0.7s linear infinite;
+}
+
+@keyframes alp-ws-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   KanbanView
+   ============================================================ */
+
+.alp-kanban {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding: var(--space-4) var(--space-5);
+  align-items: flex-start;
+  height: 100%;
+  min-height: 0;
+}
+
+.alp-kanban--loading { pointer-events: none; }
+
+.alp-kanban-col {
+  flex: 0 0 260px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  max-height: 100%;
+}
+
+.alp-kanban-col-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.alp-kanban-col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.alp-kanban-col-label {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.alp-kanban-col-count {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  background: var(--color-bg-border);
+  padding: 2px 7px;
+  border-radius: var(--radius-xl);
+}
+
+.alp-kanban-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.alp-kanban-col-empty {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--space-4) 0;
+}
+
+.alp-kanban-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-3);
+  transition: box-shadow var(--duration-fast), border-color var(--duration-fast);
+}
+
+.alp-kanban-card:hover {
+  border-color: var(--color-text-muted);
+  box-shadow: 0 2px 8px rgba(0,0,0,.14);
+}
+
+.alp-kanban-card--skeleton {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+}
+
+.alp-kanban-card-title {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.alp-kanban-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  padding: var(--space-10, 2.5rem);
+}
+
+.alp-kanban-empty-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.alp-kanban-empty-desc {
+  font-size: var(--font-size-sm);
+}
+
+/* ============================================================
+   AnalyticsView
+   ============================================================ */
+
+.alp-analytics {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  align-content: start;
+}
+
+.alp-analytics-chart {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.alp-analytics-chart-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.alp-analytics-chart-canvas {
+  width: 100%;
+  height: 220px;
+}
+
+.alp-analytics-no-echarts {
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.alp-analytics-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  padding: var(--space-5);
+}
