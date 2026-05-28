@@ -1075,6 +1075,8 @@
 .alp-dt {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   width: 100%;
 }
 
@@ -1090,7 +1092,6 @@
   background: var(--color-bg-subtle);
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
-  margin-bottom: var(--space-4);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
   z-index: 20;
@@ -1187,8 +1188,10 @@
 
 /* ---- Table wrap ---- */
 .alp-dt-table-wrap {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  overflow-x: auto;
+  overflow: auto;
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-surface);
@@ -1536,8 +1539,6 @@
   padding: var(--space-3) var(--space-5);
   background: var(--color-bg-subtle);
   border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
-  margin-top: var(--space-4);
   gap: var(--space-4);
   flex-shrink: 0;
 }
