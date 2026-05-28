@@ -1,0 +1,100 @@
+import { SwissComponent } from '@swissjs/core';
+
+/*
+  props:
+    statusColumns — [{ id, label, color }]
+    rows          — data array
+    getStatus     — (row) => columnId
+    renderCard    — (row) => JSX
+    onCardClick   — (row) => void
+    loading       — Boolean
+    emptyTitle    — string
+    emptyDescription — string
+*/
+
+component KanbanView {
+  props = {
+    statusColumns: Array,
+    rows: Array,
+    getStatus: Function,
+    renderCard: Function,
+    onCardClick: Function,
+    loading: Boolean,
+    emptyTitle: String,
+    emptyDescription: String,
+  };
+
+  render() {
+    const cols        = this.props.statusColumns || [];
+    const rows        = this.props.rows          || [];
+    const getStatus   = this.props.getStatus     || (() => '');
+    const renderCard  = this.props.renderCard;
+    const onCardClick = this.props.onCardClick;
+    const loading     = !!this.props.loading;
+
+    if (loading) {
+      return (
+        <div class="alp-kanban alp-kanban--loading">
+          {[1,2,3].map((_: any) => (
+            <div class="alp-kanban-col">
+              <div class="alp-kanban-col-header">
+                <div class="alp-skeleton" style="width:60%;height:12px;border-radius:4px;"></div>
+              </div>
+              <div class="alp-kanban-col-body">
+                {[1,2].map((_2: any) => (
+                  <div class="alp-kanban-card alp-kanban-card--skeleton">
+                    <div class="alp-skeleton" style="width:80%;height:11px;border-radius:3px;margin-bottom:6px;"></div>
+                    <div class="alp-skeleton" style="width:50%;height:10px;border-radius:3px;"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (!cols.length || !rows.length) {
+      return (
+        <div class="alp-kanban-empty">
+          <div class="alp-kanban-empty-title">{this.props.emptyTitle || 'No data'}</div>
+          {this.props.emptyDescription ? (
+            <div class="alp-kanban-empty-desc">{this.props.emptyDescription}</div>
+          ) : null}
+        </div>
+      );
+    }
+
+    return (
+      <div class="alp-kanban">
+        {cols.map((col: any) => {
+          const colRows = rows.filter((r: any) => getStatus(r) === col.id);
+          return (
+            <div class="alp-kanban-col">
+              <div class="alp-kanban-col-header">
+                <span class="alp-kanban-col-dot" style={`background:${col.color || 'var(--color-text-muted)'}`}></span>
+                <span class="alp-kanban-col-label">{col.label}</span>
+                <span class="alp-kanban-col-count">{colRows.length}</span>
+              </div>
+              <div class="alp-kanban-col-body">
+                {colRows.length === 0 ? (
+                  <div class="alp-kanban-col-empty">Empty</div>
+                ) : colRows.map((row: any) => (
+                  <div
+                    class="alp-kanban-card"
+                    onclick={() => onCardClick?.(row)}
+                    style={onCardClick ? 'cursor:pointer;' : ''}
+                  >
+                    {renderCard ? renderCard(row) : (
+                      <div class="alp-kanban-card-title">{row.name || row.title || row.id}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+}
