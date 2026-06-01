@@ -6,8 +6,8 @@
   "main": "./src/index.ui",
   "exports": { ".": "./src/index.ui" },
   "publishConfig": {
-    "registry": "https://registry.npmjs.org",
-    "access": "public"
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
   },
   "repository": {
     "type": "git",
