@@ -1075,8 +1075,6 @@
 .alp-dt {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
   width: 100%;
 }
 
@@ -1188,12 +1186,10 @@
 
 /* ---- Table wrap ---- */
 .alp-dt-table-wrap {
-  flex: 1;
-  min-height: 0;
   width: 100%;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: visible;
   border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-surface);
 }
 
@@ -1238,6 +1234,53 @@
 
 .alp-dt-th--right { text-align: right; }
 .alp-dt-th--center { text-align: center; }
+
+.alp-dt-th--options {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  padding: 0;
+  text-align: center;
+  position: sticky;
+  right: 0;
+  background: var(--color-bg-subtle);
+  z-index: 2;
+}
+
+.alp-dt-td--options {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
+  padding: 0;
+  text-align: center;
+  position: sticky;
+  right: 0;
+  background: var(--color-bg-surface);
+}
+
+.alp-dt-row:hover .alp-dt-td--options { background: var(--color-bg-subtle); }
+.alp-dt-row--selected .alp-dt-td--options { background: var(--color-sidebar-active); }
+
+.alp-dt-options-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--duration-fast), background var(--duration-fast);
+}
+
+.alp-dt-row:hover .alp-dt-options-btn,
+.alp-dt-th--options .alp-dt-options-btn { opacity: 1; }
+
+.alp-dt-options-btn:hover { background: var(--color-bg-border); color: var(--color-text-primary); }
+.alp-dt-options-btn--active { opacity: 1 !important; background: var(--color-accent-subtle); color: var(--color-accent); }
 
 .alp-dt-th--sorted { 
   color: var(--color-accent);
