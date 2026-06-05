@@ -1,4 +1,5 @@
 import { SwissComponent } from '@swissjs/core';
+import type { WorkspaceHeaderAction, WorkspaceHeaderView, WorkspaceHeaderFilter, ShellGlobal } from '@kibologic/erp-core';
 
 /*
   props:
@@ -19,9 +20,9 @@ component WorkspaceHeader {
     subtitle:     String,
     views:        Array,
     activeView:   String,
-    onViewChange: Function,
-    filters:      Array,
-    actions:      Array,
+    onViewChange: Function as (id: string) => void,
+    filters:      Array as () => WorkspaceHeaderFilter[],
+    actions:      Array as () => WorkspaceHeaderAction[],
     onRefresh:    Function,
     loading:      Boolean,
   };
@@ -30,7 +31,7 @@ component WorkspaceHeader {
   state { let showActionsMenu: boolean = false; }
 
   mounted() {
-    document.addEventListener('click', (e: any) => {
+    document.addEventListener('click', (e: MouseEvent) => {
       if (!e.target.closest('.alp-ws-hdr-drop')) {
         if (this.showViewMenu || this.showActionsMenu) {
           this.showViewMenu    = false;
@@ -41,12 +42,12 @@ component WorkspaceHeader {
   }
 
   render() {
-    const views   = this.props.views   || [];
-    const filters = this.props.filters || [];
-    const actions = this.props.actions || [];
+    const views: WorkspaceHeaderView[]   = this.props.views   || [];
+    const filters: WorkspaceHeaderFilter[] = this.props.filters || [];
+    const actions: WorkspaceHeaderAction[] = this.props.actions || [];
     const loading = !!this.props.loading;
     const av      = this.props.activeView || (views[0]?.id ?? '');
-    const avLabel = views.find((v: any) => v.id === av)?.label || 'View';
+    const avLabel = views.find((v: WorkspaceHeaderView) => v.id === av)?.label || 'View';
 
     return (
       <div class="alp-ws-hdr">
@@ -75,8 +76,8 @@ component WorkspaceHeader {
                 </svg>
               </button>
               {this.showViewMenu ? (
-                <div class="alp-ws-hdr-panel" onclick={(e: any) => e.stopPropagation()}>
-                  {views.map((v: any) => (
+                <div class="alp-ws-hdr-panel" onclick={(e: MouseEvent) => e.stopPropagation()}>
+                  {views.map((v: WorkspaceHeaderView) => (
                     <button
                       class={`alp-ws-hdr-panel-item ${av === v.id ? 'alp-ws-hdr-panel-item--active' : ''}`}
                       onclick={() => { this.props.onViewChange?.(v.id); this.showViewMenu = false; }}
@@ -88,14 +89,14 @@ component WorkspaceHeader {
           ) : null}
 
           {/* ── Filters ── */}
-          {filters.map((f: any) => (
+          {filters.map((f: WorkspaceHeaderFilter) => (
             <select
               class="alp-input alp-input--sm"
               style="min-width:130px;height:30px;"
-              onchange={(e: any) => f.onChange?.(e.target.value)}
+              onchange={(e: Event) => f.onChange?.(e.target.value)}
             >
               <option value="">{f.label || 'All'}</option>
-              {(f.options || []).map((o: any) => (
+              {(f.options || []).map((o: { value: string; label: string }) => (
                 <option value={o.value} selected={f.value === o.value}>{o.label}</option>
               ))}
             </select>
@@ -114,9 +115,9 @@ component WorkspaceHeader {
                 </svg>
               </button>
               {this.showActionsMenu ? (
-                <div class="alp-ws-hdr-panel alp-ws-hdr-panel--right" onclick={(e: any) => e.stopPropagation()}>
-                  {actions.map((a: any) => {
-                    const hasPerm = !a.perm || !!(window as any).__skltn?.can(a.perm);
+                <div class="alp-ws-hdr-panel alp-ws-hdr-panel--right" onclick={(e: MouseEvent) => e.stopPropagation()}>
+                  {actions.map((a: WorkspaceHeaderAction) => {
+                    const hasPerm = !a.perm || !!(window as unknown as { __skltn?: ShellGlobal }).__skltn?.can(a.perm);
                     if (!hasPerm) return null;
                     return (
                       <button
