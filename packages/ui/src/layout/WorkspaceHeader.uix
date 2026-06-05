@@ -29,32 +29,7 @@ component WorkspaceHeader {
   state { let showViewMenu:    boolean = false; }
   state { let showActionsMenu: boolean = false; }
 
-  _uid: string = `wsh_${Math.random().toString(36).slice(2)}`;
-
   mounted() {
-    if (this.props.onRefresh) {
-      const uid = this._uid;
-      const cb  = this.props.onRefresh;
-
-      const _registerIfVisible = () => {
-        const el = document.querySelector(`[data-wsh-uid="${uid}"]`);
-        if (!el || (el as HTMLElement).offsetParent === null) return;
-        const _ws  = (window as any).__skltn?.registry?.get('workspace');
-        const _tab = _ws?.getActive?.();
-        if (_tab?.id) {
-          if (!(window as any).__alpRefresh) (window as any).__alpRefresh = {};
-          (window as any).__alpRefresh[_tab.id] = cb;
-        }
-      };
-
-      _registerIfVisible();
-      setTimeout(_registerIfVisible, 100);
-      setTimeout(_registerIfVisible, 400);
-
-      const eb = (window as any).__skltn?.registry?.get('event-bus');
-      if (eb) eb.on('workspace:activated', _registerIfVisible);
-    }
-
     document.addEventListener('click', (e: any) => {
       if (!e.target.closest('.alp-ws-hdr-drop')) {
         if (this.showViewMenu || this.showActionsMenu) {
@@ -74,7 +49,7 @@ component WorkspaceHeader {
     const avLabel = views.find((v: any) => v.id === av)?.label || 'View';
 
     return (
-      <div class="alp-ws-hdr" data-wsh-uid={this._uid}>
+      <div class="alp-ws-hdr">
 
         <div class="alp-ws-hdr-left">
           {this.props.title    ? <span class="alp-ws-hdr-title">{this.props.title}</span>    : null}
