@@ -50,8 +50,15 @@ component DataTable {
   }
 
   getStorageKey() {
-    const tid = typeof localStorage !== 'undefined' ? (localStorage.getItem('alpine-tenant-id') || '0000') : '0000';
-    return `alp-dt-v4-${tid}-${this.props.id || 'default'}`;
+    let uid = '0000';
+    try {
+      const raw = localStorage.getItem('alpine-user');
+      if (raw) {
+        const u = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        uid = (u as Record<string, string>)?.id || '0000';
+      }
+    } catch (_) {}
+    return `alp-dt-v5-${uid}-${this.props.id || 'default'}`;
   }
 
   saveState(extraData: Record<string, unknown>) {
@@ -211,11 +218,39 @@ component DataTable {
     return (
       <div class="alp-dt">
 
-        {/* ── Toolbar: selection badge left, search right ── */}
+        {/* ── Toolbar: pagination left, search right ── */}
         <div class="alp-dt-toolbar">
           <div class="alp-dt-toolbar-left">
             {selectedCount > 0 ? (
               <span class="alp-dt-selection-badge">{selectedCount} selected</span>
+            ) : null}
+            {!isLoading ? (
+              <div class="alp-dt-pg-compact">
+                <button class="alp-dt-pg-nav" disabled={safePage <= 1}
+                  onclick={() => { this.currentPage = 1; }} title="First page">«</button>
+                <button class="alp-dt-pg-nav" disabled={safePage <= 1}
+                  onclick={() => { this.currentPage = safePage - 1; }} title="Previous page">‹</button>
+                <span class="alp-dt-pg-label">
+                  {totalRows > 0 ? `${safePage} / ${totalPages}` : '—'}
+                </span>
+                <button class="alp-dt-pg-nav" disabled={safePage >= totalPages}
+                  onclick={() => { this.currentPage = safePage + 1; }} title="Next page">›</button>
+                <button class="alp-dt-pg-nav" disabled={safePage >= totalPages}
+                  onclick={() => { this.currentPage = totalPages; }} title="Last page">»</button>
+                <div class="alp-dt-pg-divider"></div>
+                <select class="alp-dt-select-sm" value={this.rowsPerPage}
+                  onchange={(e: Event) => { this.rowsPerPage = Number((e.target as HTMLSelectElement).value); this.currentPage = 1; this.saveState({ rowsPerPage: this.rowsPerPage }); }}>
+                  {this.rowsPerPageOptions.map(opt => <option value={opt}>{opt}</option>)}
+                </select>
+                <span class="alp-dt-pg-sep">/ page</span>
+                {totalRows > 0 ? (
+                  <span class="alp-dt-pg-count">
+                    {start + 1}–{Math.min(start + this.rowsPerPage, totalRows)} of {totalRows}
+                  </span>
+                ) : (
+                  <span class="alp-dt-pg-count">0 results</span>
+                )}
+              </div>
             ) : null}
           </div>
           <div class="alp-dt-toolbar-right">
@@ -228,7 +263,7 @@ component DataTable {
                 class="alp-dt-search"
                 placeholder="Search…"
                 value={this.query || ''}
-                oninput={(e: Event) => this.handleSearch(e.target.value)}
+                oninput={(e: Event) => this.handleSearch((e.target as HTMLInputElement).value)}
               />
             </div>
           </div>
@@ -413,37 +448,6 @@ component DataTable {
           </table>
         </div>
 
-        {/* ── Pagination ── */}
-        <div class="alp-dt-pagination">
-          <div class="alp-dt-pagination-left">
-            <div class="alp-dt-pagination-info">
-              {isLoading ? 'Loading…' : totalRows === 0 ? 'No results' : `${start + 1}–${Math.min(start + this.rowsPerPage, totalRows)} of ${totalRows}`}
-            </div>
-            <div class="alp-dt-rows-per-page">
-              <span>Rows per page:</span>
-              <select class="alp-dt-select-sm" value={this.rowsPerPage}
-                onchange={(e: Event) => { this.rowsPerPage = Number(e.target.value); this.currentPage = 1; this.saveState({ rowsPerPage: this.rowsPerPage }); }}>
-                {this.rowsPerPageOptions.map(opt => <option value={opt}>{opt}</option>)}
-              </select>
-            </div>
-          </div>
-          <div class="alp-dt-pagination-controls">
-            <button class="alp-dt-page-btn" disabled={safePage === 1} onclick={() => { this.currentPage = safePage - 1; }}>←</button>
-            {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
-              let p = i + 1;
-              if (totalPages > 7 && safePage > 4) {
-                p = safePage - 3 + i;
-                if (p + (7 - i - 1) > totalPages) p = totalPages - 6 + i;
-              }
-              if (p < 1 || p > totalPages) return null;
-              return (
-                <button class={`alp-dt-page-btn ${safePage === p ? 'alp-dt-page-btn--active' : ''}`}
-                  onclick={() => { this.currentPage = p; }}>{p}</button>
-              );
-            })}
-            <button class="alp-dt-page-btn" disabled={safePage === totalPages} onclick={() => { this.currentPage = safePage + 1; }}>→</button>
-          </div>
-        </div>
 
       </div>
     );
