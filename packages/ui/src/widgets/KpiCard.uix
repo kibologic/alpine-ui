@@ -2,33 +2,106 @@ import { SwissComponent } from '@swissjs/core';
 
 component KpiCard {
   props = {
-    label: String,
-    value: String,
-    delta: String,
-    deltaType: String,
-    icon: String,
-    renderSparkLine: Function as () => any,
+    label:          String,
+    value:          String,
+    delta:          String,
+    deltaType:      String,
+    icon:           String,
+    comparison:     String,
+    loading:        Boolean,
+    sparkline:      Array as () => number[],
+    info:           String,
+    renderSparkLine: Function as () => unknown,
   };
 
+  state { let _tip: boolean = false; }
+
+  _sparkUri(data: number[]): string {
+    if (!Array.isArray(data) || data.length < 2) return '';
+    const W = 240, H = 48;
+    const min = Math.min(...data);
+    const max = Math.max(...data);
+    const range = (max - min) || 1;
+    const n = data.length;
+    const xs = data.map((_: number, i: number) => (i / (n - 1)) * W);
+    const ys = data.map((v: number) => H - 6 - ((v - min) / range) * (H - 12));
+    const pts = xs.map((x: number, i: number) => `${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+    const area = `M${xs[0].toFixed(1)},${H} L${xs[0].toFixed(1)},${ys[0].toFixed(1)} ${xs.map((x: number, i: number) => `L${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ')} L${xs[n-1].toFixed(1)},${H} Z`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${W}' height='${H}' viewBox='0 0 ${W} ${H}'><path d='${area}' fill='%236366f1' fill-opacity='0.08'/><polyline points='${pts}' fill='none' stroke='%236366f1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>`;
+    return `data:image/svg+xml,${svg}`;
+  }
+
   render() {
-    const deltaType = this.props.deltaType || 'neutral';
-    const { label, value, delta, icon } = this.props;
+    const { label, value, delta, deltaType, icon, loading, comparison, sparkline, info, renderSparkLine } = this.props;
+    const dType = (deltaType as string) || 'neutral';
+
+    if (loading) {
+      return (
+        <div class="alp-kpi-card alp-kpi-card--loading" aria-busy="true">
+          <div class="alp-kpi-skel alp-kpi-skel--sm"></div>
+          <div class="alp-kpi-skel alp-kpi-skel--lg"></div>
+          <div class="alp-kpi-skel alp-kpi-skel--sm" style="width:60%;"></div>
+        </div>
+      );
+    }
+
+    const INFO_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23aaa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='16' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'/%3E%3C/svg%3E`;
+    const trendChar = dType === 'positive' ? '▲' : dType === 'negative' ? '▼' : '■';
+    const sparkUri  = (sparkline as number[])?.length >= 2 ? this._sparkUri(sparkline as number[]) : null;
+    const isEmpty   = !value || value === '—';
 
     return (
       <div class="alp-kpi-card">
         <div class="alp-kpi-header">
           <span class="alp-kpi-label">{label}</span>
-          {icon && <span class="alp-kpi-icon" innerHTML={icon}></span>}
+          <div style="display:flex;align-items:center;gap:6px;">
+            {icon && <img src={icon as string} width="15" height="15" alt="" style="opacity:0.75;" />}
+            {info && (
+              <div style="position:relative;line-height:0;">
+                <img
+                  src={INFO_SVG}
+                  width="12"
+                  height="12"
+                  alt="info"
+                  style="cursor:default;display:block;"
+                  onMouseEnter={() => { this._tip = true; }}
+                  onMouseLeave={() => { this._tip = false; }}
+                />
+                {this._tip && (
+                  <div style="position:absolute;top:18px;right:0;background:var(--color-text-primary,#111);color:#fff;font-size:11px;line-height:1.4;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:200;pointer-events:none;box-shadow:0 2px 6px rgba(0,0,0,.15);">
+                    {info}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        <div class="alp-kpi-value">{value ?? '—'}</div>
-        {delta && (
-          <div class={`alp-kpi-delta alp-kpi-delta--${deltaType}`}>
-            {deltaType === 'positive' ? '↑' : deltaType === 'negative' ? '↓' : ''}
-            {' '}{delta}
+
+        <div class={`alp-kpi-value${isEmpty ? ' alp-kpi-value--empty' : ''}`}>
+          {isEmpty ? '—' : value}
+        </div>
+
+        {(delta || comparison) && (
+          <div class="alp-kpi-meta">
+            {delta && (
+              <span class={`alp-kpi-trend alp-kpi-trend--${dType}`}>
+                <span class="alp-kpi-trend-sym">{trendChar}</span>
+                {' '}{delta}
+              </span>
+            )}
+            {comparison && (
+              <span class="alp-kpi-comparison">{comparison}</span>
+            )}
           </div>
         )}
-        {this.props.renderSparkLine && (
-          <div class="alp-kpi-sparkline">{this.props.renderSparkLine()}</div>
+
+        {sparkUri && (
+          <div class="alp-kpi-sparkline">
+            <img src={sparkUri} width="240" height="48" alt="" style="width:100%;height:48px;display:block;" />
+          </div>
+        )}
+        {!sparkUri && renderSparkLine && (
+          <div class="alp-kpi-sparkline">{(renderSparkLine as () => unknown)()}</div>
         )}
       </div>
     );
