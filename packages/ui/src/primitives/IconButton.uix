@@ -2,6 +2,7 @@ import { SwissComponent } from '@swissjs/core';
 
 component IconButton {
   props = {
+    // Must be a developer-controlled SVG string — never pass user-derived content.
     icon: String,
     variant: String,
     size: String,
@@ -11,6 +12,12 @@ component IconButton {
     title: String,
     class: String,
   };
+
+  sanitizeIcon(svg: string): string {
+    return svg
+      .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '');
+  }
 
   render() {
     const variant = this.props.variant || 'ghost';
@@ -30,7 +37,7 @@ component IconButton {
         {this.props.loading ? (
           <span class="alp-btn-spinner" aria-hidden="true"></span>
         ) : (
-          <span style="display:flex;align-items:center;justify-content:center;" innerHTML={this.props.icon}></span>
+          <span style="display:flex;align-items:center;justify-content:center;" innerHTML={this.sanitizeIcon(this.props.icon || '')}></span>
         )}
       </button>
     );
