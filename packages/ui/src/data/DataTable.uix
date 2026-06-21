@@ -84,15 +84,11 @@ component DataTable {
   handleSearch(val: string) {
     this.query = val;
     this.currentPage = 1;
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => this.scheduleUpdate?.(), 150);
   }
 
   handleColumnFilter(key: string, val: string) {
     this.columnFilters = { ...this.columnFilters, [key]: val };
     this.currentPage = 1;
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => this.scheduleUpdate?.(), 150);
   }
 
   handleSort(key: string) {
@@ -262,7 +258,6 @@ component DataTable {
                 type="search"
                 class="alp-dt-search"
                 placeholder="Search…"
-                value={this.query || ''}
                 oninput={(e: Event) => this.handleSearch((e.target as HTMLInputElement).value)}
               />
             </div>
