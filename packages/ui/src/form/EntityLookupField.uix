@@ -1,0 +1,157 @@
+import { SwissComponent } from '@swissjs/core';
+
+component EntityLookupField {
+  props = {
+    value:        '',
+    options:      [],
+    displayField: 'name',
+    placeholder:  'Search…',
+    disabled:     false,
+    loading:      false,
+    canCreate:    false,
+    createLabel:  'Create New',
+    onSelect:     null,
+    onCreate:     null,
+  };
+
+  state { let open: boolean   = false; }
+  state { let query: string   = ''; }
+  state { let focused: number = -1; }
+
+  _uid: string = Math.random().toString(36).slice(2, 8);
+
+  _selectedItem() {
+    if (!this.props.value) return null;
+    return (this.props.options || []).find((o) => o.id === this.props.value) || null;
+  }
+
+  _label(item: unknown) {
+    if (!item) return '';
+    const df = this.props.displayField || 'name';
+    return item[df] || item.name || item.id || '';
+  }
+
+  _filtered() {
+    const opts = this.props.options || [];
+    const q = (this.query || '').toLowerCase().trim();
+    if (!q) return opts;
+    const df = this.props.displayField || 'name';
+    return opts.filter((o) => (o[df] || '').toLowerCase().includes(q));
+  }
+
+  _open() {
+    if (this.props.disabled || this.props.loading) return;
+    this.open    = true;
+    this.query   = '';
+    this.focused = -1;
+    setTimeout(() => {
+      const el = document.getElementById(`elf-${this._uid}`);
+      if (el) el.focus();
+    }, 20);
+  }
+
+  _close() {
+    this.open    = false;
+    this.query   = '';
+    this.focused = -1;
+  }
+
+  _select(item: unknown) {
+    this.props.onSelect?.(item);
+    this._close();
+  }
+
+  _handleKey(e: KeyboardEvent) {
+    const list  = this._filtered();
+    const total = list.length + (this.props.canCreate ? 1 : 0);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      this.focused = Math.min(this.focused + 1, total - 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      this.focused = Math.max(this.focused - 1, -1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (this.focused >= 0 && this.focused < list.length) {
+        this._select(list[this.focused]);
+      } else if (this.focused === list.length && this.props.canCreate) {
+        this._close();
+        this.props.onCreate?.();
+      }
+    } else if (e.key === 'Escape') {
+      this._close();
+    }
+  }
+
+  render() {
+    const selected = this._selectedItem();
+    const filtered = this._filtered();
+    const label    = this._label(selected);
+
+    return (
+      <div style="position:relative;" onblur-capture={(e: FocusEvent) => {
+        if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
+          this._close();
+        }
+      }}>
+
+        <button
+          type="button"
+          class="alp-input alp-input--md"
+          disabled={this.props.disabled || this.props.loading}
+          onclick={() => this.open ? this._close() : this._open()}
+          style="display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;cursor:pointer;"
+        >
+          <span style={`flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${selected ? 'var(--color-text-primary)' : 'var(--color-text-muted)'};`}>
+            {this.props.loading ? 'Loading…' : (label || this.props.placeholder || 'Select…')}
+          </span>
+          <span style="font-size:10px;color:var(--color-text-muted);margin-left:6px;flex-shrink:0;">{this.open ? '▲' : '▼'}</span>
+        </button>
+
+        {this.open && (
+          <div style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:999;background:var(--color-bg-elevated);border:1px solid var(--color-bg-border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);overflow:hidden;">
+            <div style="padding:8px;">
+              <input
+                id={`elf-${this._uid}`}
+                type="text"
+                class="alp-input alp-input--md"
+                style="width:100%;background:var(--color-bg-surface);"
+                placeholder={this.props.placeholder || 'Search…'}
+                value={this.query}
+                oninput={(e: Event) => { this.query = (e.target as HTMLInputElement).value; this.focused = -1; }}
+                onkeydown={(e: KeyboardEvent) => this._handleKey(e)}
+                autocomplete="off"
+              />
+            </div>
+            <div style="max-height:220px;overflow-y:auto;">
+              {filtered.length === 0 && !this.props.canCreate && (
+                <div style="padding:10px 14px;font-size:12px;color:var(--color-text-muted);">No results</div>
+              )}
+              {filtered.map((item, idx: number) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onclick={() => this._select(item)}
+                  style={`display:block;width:100%;text-align:left;padding:9px 14px;font-size:13px;border:none;cursor:pointer;background:${this.focused === idx || item.id === this.props.value ? 'var(--color-bg-subtle)' : 'transparent'};color:${item.id === this.props.value ? 'var(--color-accent)' : 'var(--color-text-primary)'};font-weight:${item.id === this.props.value ? '600' : '400'};`}
+                >
+                  {this._label(item)}
+                </button>
+              ))}
+            </div>
+            {this.props.canCreate && (
+              <div style="border-top:1px solid var(--color-bg-border);padding:6px 8px;">
+                <button
+                  type="button"
+                  onclick={() => { this._close(); this.props.onCreate?.(); }}
+                  style={`display:block;width:100%;text-align:left;padding:8px 10px;font-size:12px;font-weight:600;color:var(--color-accent);background:${this.focused === filtered.length ? 'var(--color-bg-subtle)' : 'transparent'};border:none;cursor:pointer;border-radius:4px;`}
+                >
+                  + {this.props.createLabel || 'Create New'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+}
