@@ -33,8 +33,23 @@ component DeleteConfirmModal {
 
   state { let reason: string = ''; }
 
+  _onKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && this.props.open && !this.props.loading) {
+      this.props.oncancel?.();
+    }
+  };
+
   mounted() {
     this.reason = '';
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', this._onKeydown);
+    }
+  }
+
+  unmounted() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this._onKeydown);
+    }
   }
 
   onOpen() {
@@ -76,6 +91,8 @@ component DeleteConfirmModal {
               Reason for deletion <span style="color: var(--danger-color);">*</span>
             </label>
             <textarea
+              id="alp-delete-confirm-reason"
+              name="reason"
               placeholder="e.g. Discontinued, Duplicate entry, Entered in error..."
               rows="3"
               style="width: 100%; padding: 0.625rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.875rem; resize: vertical; box-sizing: border-box; font-family: inherit;"

@@ -160,13 +160,13 @@ component DataTable {
     this.saveState({ hiddenCols: next });
   }
 
-  startResize(e: MouseEvent, key: string) {
+  startResize(e: PointerEvent, key: string) {
     e.preventDefault(); e.stopPropagation();
     this.resizingKey = key;
     this.resizeStartX = e.pageX;
     const th = (e.target as HTMLElement).closest('th') as HTMLElement;
     this.resizeStartW = th ? th.offsetWidth : 120;
-    const onMove = (me: MouseEvent) => {
+    const onMove = (me: PointerEvent) => {
       if (!this.resizingKey) return;
       const newW = Math.max(60, this.resizeStartW + (me.pageX - this.resizeStartX));
       this.colWidths = { ...this.colWidths, [this.resizingKey]: `${newW}px` };
@@ -174,11 +174,12 @@ component DataTable {
     const onUp = () => {
       this.saveState({ colWidths: this.colWidths });
       this.resizingKey = '';
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
     };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    // Pointer Events unify mouse/touch/pen so column resize works on tablets.
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }
 
   handleExport() {
@@ -286,7 +287,7 @@ component DataTable {
                           {isSorted ? (this.sortDir === 'asc' ? '↑' : '↓') : '↕'}
                         </span>
                       </div>
-                      <div class="alp-dt-resizer" onmousedown={(e: MouseEvent) => this.startResize(e, col.key)}
+                      <div class="alp-dt-resizer" onpointerdown={(e: PointerEvent) => this.startResize(e, col.key)}
                         title="Drag to resize"></div>
                     </th>
                   );

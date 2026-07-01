@@ -12,15 +12,43 @@ component Modal {
     renderFooter: Function as () => any,
   };
 
+  _lastFocused: HTMLElement | null = null;
+
+  _onKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && this.props.open && !this.props.hideClose) {
+      const close = this.props.onclose || this.props.onClose;
+      if (close) close();
+    }
+  };
+
   mount() {
     if (typeof window !== 'undefined') {
-      window.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && this.props.open && !this.props.hideClose) {
-          const close = this.props.onclose || this.props.onClose;
-          if (close) close();
-        }
-      });
+      window.addEventListener('keydown', this._onKeydown);
     }
+  }
+
+  unmounted() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('keydown', this._onKeydown);
+    }
+    this._restoreFocus();
+  }
+
+  // Basic focus management: remember what was focused before the modal
+  // opened and restore it on close, since none of Alpine's modal
+  // implementations trap or restore focus today despite asserting
+  // role="dialog" aria-modal="true".
+  _captureFocus() {
+    if (typeof document !== 'undefined' && !this._lastFocused) {
+      this._lastFocused = document.activeElement as HTMLElement;
+    }
+  }
+
+  _restoreFocus() {
+    if (this._lastFocused && typeof this._lastFocused.focus === 'function') {
+      this._lastFocused.focus();
+    }
+    this._lastFocused = null;
   }
 
   handleClose() {
@@ -28,11 +56,23 @@ component Modal {
     if (close) close();
   }
 
+  handleBackdropClick() {
+    // A modal opened with hideClose=true is meant to force an action —
+    // it must not be dismissable by clicking outside it either, matching
+    // the Escape-key guard above. Previously this always closed regardless.
+    if (this.props.hideClose) return;
+    this.handleClose();
+  }
+
   render() {
-    if (!this.props.open) return null;
+    if (!this.props.open) {
+      this._restoreFocus();
+      return null;
+    }
+    this._captureFocus();
     const size = this.props.size || 'md';
     return (
-      <div class="alp-modal-backdrop" onclick={() => this.handleClose()}>
+      <div class="alp-modal-backdrop" onclick={() => this.handleBackdropClick()}>
         <div
           class={`alp-modal alp-modal--${size}`}
           onclick={(e: Event) => e.stopPropagation()}

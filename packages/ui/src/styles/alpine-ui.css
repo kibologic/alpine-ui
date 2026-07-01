@@ -1300,6 +1300,7 @@
   cursor: col-resize;
   transition: background var(--duration-fast);
   z-index: 5;
+  touch-action: none;
 }
 
 .alp-dt-resizer:hover,

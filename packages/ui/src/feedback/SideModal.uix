@@ -1,0 +1,57 @@
+import { SwissComponent } from '@swissjs/core';
+
+component SideModal {
+  props = {
+    open: Boolean,
+    title: String,
+    subtitle: String,
+    size: String,
+    expandable: Boolean,
+    onexpand: Function as () => void,
+    onclose: Function as () => void,
+    headerActions: Function as () => any,
+    footer: Function as () => any,
+    renderBody: Function as () => any,
+  };
+
+  render() {
+    const size = this.props.size || 'md';
+
+    return (
+      <div class="alp-side-modal-container">
+        {this.props.open ? (
+          <div class="alp-side-modal-overlay" onclick={() => this.props.onclose?.()}></div>
+        ) : null}
+        <div class={`alp-side-modal alp-side-modal--${size} ${this.props.open ? 'alp-side-modal--open' : ''}`}>
+          <div class="alp-side-modal-header">
+            <div class="alp-side-modal-header-title">
+              <span class="alp-side-modal-title">{this.props.title}</span>
+              {this.props.subtitle ? <span class="alp-side-modal-subtitle">{this.props.subtitle}</span> : null}
+            </div>
+            <div class="alp-side-modal-header-actions">
+              {this.props.headerActions?.()}
+              {this.props.expandable ? (
+                <button
+                  class="alp-btn alp-btn--ghost alp-btn--sm"
+                  title={size === 'xl' ? 'Collapse' : 'Expand'}
+                  onclick={() => this.props.onexpand?.()}
+                >
+                  {size === 'xl' ? '⊟' : '⊞'}
+                </button>
+              ) : null}
+              <button class="alp-btn alp-btn--ghost alp-btn--sm" onclick={() => this.props.onclose?.()}>✕</button>
+            </div>
+          </div>
+          <div class="alp-side-modal-body">
+            {this.props.renderBody?.()}
+          </div>
+          {this.props.footer ? (
+            <div class="alp-side-modal-footer">
+              {this.props.footer()}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+}
