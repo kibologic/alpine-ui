@@ -65,14 +65,27 @@ component Modal {
   }
 
   render() {
+    // Always mounted, never `return null` when closed. The swiss-lib
+    // renderer replaces a null-returning component's vnode with a fresh
+    // placeholder <span data-swiss-null> on every render (see
+    // component-rendering.ts) — for a single occasional modal that's
+    // mostly harmless, but a page with several Modal instances as siblings
+    // (confirmed: PosActiveSession.uix alone has 7) hits this repeatedly on
+    // every render, and empirically correlates with a real, reproduced bug:
+    // an unrelated sibling component (PosCheckoutModal) silently failing to
+    // commit its DOM updates — almost certainly a reconciliation issue
+    // triggered by the repeated placeholder swap-in/out disrupting sibling
+    // DOM node identity tracking. CSS-driven visibility avoids the
+    // placeholder path entirely. Same fix as FloatingWindow.uix and
+    // PosCheckoutModal.uix.
     if (!this.props.open) {
       this._restoreFocus();
-      return null;
+    } else {
+      this._captureFocus();
     }
-    this._captureFocus();
     const size = this.props.size || 'md';
     return (
-      <div class="alp-modal-backdrop" onclick={() => this.handleBackdropClick()}>
+      <div class="alp-modal-backdrop" style={`display:${this.props.open ? 'flex' : 'none'};`} onclick={() => this.handleBackdropClick()}>
         <div
           class={`alp-modal alp-modal--${size}`}
           onclick={(e: Event) => e.stopPropagation()}
