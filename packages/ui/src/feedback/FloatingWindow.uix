@@ -33,7 +33,7 @@ component FloatingWindow {
     resizable: Boolean,           // default true
     draggable: Boolean,           // default true
     onclose: Function as () => void,
-    onminimize: Function as () => void,   // architecture-ready, not wired to a UI control yet
+    onminimize: Function as () => void,   // fired when the user clicks Minimize (not on Close)
     renderIcon: Function as () => any,
     renderToolbar: Function as () => any,
     renderBody: Function as () => any,
@@ -44,7 +44,8 @@ component FloatingWindow {
   state { let _y: number | null = null; }
   state { let _width: number = 420; }
   state { let _height: number = 560; }
-  state { let _collapsed: boolean = false; }
+  state { let _collapsed: boolean = false; }      // minimized — shrunk to header bar only
+  state { let _maximized: boolean = false; }      // fills the viewport (minus a margin)
   state { let _loaded: boolean = false; }
 
   _dragStartX: number = 0;
@@ -63,7 +64,7 @@ component FloatingWindow {
       const prefs = (window as unknown as { __skltn?: { storage?: { prefs?: { get: (k: string) => Promise<unknown> } } } }).__skltn?.storage?.prefs;
       const key = this.props.storageKey || 'alp-floating-window';
       const saved = prefs ? await prefs.get(`floating-window:${key}`) as {
-        x?: number; y?: number; width?: number; height?: number; collapsed?: boolean;
+        x?: number; y?: number; width?: number; height?: number; collapsed?: boolean; maximized?: boolean;
       } | null : null;
       if (saved) {
         if (typeof saved.x === 'number') this._x = saved.x;
@@ -71,6 +72,7 @@ component FloatingWindow {
         if (typeof saved.width === 'number') this._width = saved.width;
         if (typeof saved.height === 'number') this._height = saved.height;
         if (typeof saved.collapsed === 'boolean') this._collapsed = saved.collapsed;
+        if (typeof saved.maximized === 'boolean') this._maximized = saved.maximized;
       }
     } catch (_) { /* non-fatal — falls back to default position/size */ }
     this._loaded = true;
@@ -110,13 +112,14 @@ component FloatingWindow {
       if (!prefs) return;
       const key = this.props.storageKey || 'alp-floating-window';
       await prefs.set(`floating-window:${key}`, {
-        x: this._x, y: this._y, width: this._width, height: this._height, collapsed: this._collapsed,
+        x: this._x, y: this._y, width: this._width, height: this._height,
+        collapsed: this._collapsed, maximized: this._maximized,
       });
     } catch (_) { /* non-fatal */ }
   }
 
   _startDrag(e: PointerEvent) {
-    if (this.props.draggable === false) return;
+    if (this.props.draggable === false || this._maximized) return;
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).closest('.alp-floating-window')?.getBoundingClientRect();
     this._dragOriginX = this._x !== null ? this._x : (rect?.left ?? 0);
@@ -142,7 +145,7 @@ component FloatingWindow {
   }
 
   _startResize(e: PointerEvent) {
-    if (this.props.resizable === false) return;
+    if (this.props.resizable === false || this._maximized) return;
     e.preventDefault();
     e.stopPropagation();
     this._resizeStartX = e.clientX;
@@ -168,8 +171,19 @@ component FloatingWindow {
     window.addEventListener('pointerup', onUp);
   }
 
-  _toggleCollapse() {
+  _toggleMinimize() {
     this._collapsed = !this._collapsed;
+    // Minimize and maximize are mutually exclusive — restoring from
+    // whichever one wasn't just toggled, matching standard OS window chrome.
+    if (this._collapsed) this._maximized = false;
+    this.scheduleUpdate?.();
+    this._persist();
+    if (this._collapsed && this.props.onminimize) this.props.onminimize();
+  }
+
+  _toggleMaximize() {
+    this._maximized = !this._maximized;
+    if (this._maximized) this._collapsed = false;
     this.scheduleUpdate?.();
     this._persist();
   }
@@ -178,15 +192,27 @@ component FloatingWindow {
     // Rendered even when closed (display:none) — see class doc comment on
     // why this deliberately differs from this codebase's usual
     // {open && <Overlay/>} pattern for shell-level panels.
-    const style = [
-      `display:${this.props.open ? 'flex' : 'none'}`,
-      this._x !== null ? `left:${this._x}px;top:${this._y}px;right:auto;bottom:auto;` : 'right:24px;bottom:24px;',
-      `width:${this._width}px`,
-      `height:${this._collapsed ? 'auto' : `${this._height}px`}`,
-    ].join(';');
+    const style = this._maximized
+      ? [
+          `display:${this.props.open ? 'flex' : 'none'}`,
+          'left:24px;top:24px;right:24px;bottom:24px;',
+          'width:auto;height:auto;',
+        ].join(';')
+      : [
+          `display:${this.props.open ? 'flex' : 'none'}`,
+          this._x !== null ? `left:${this._x}px;top:${this._y}px;right:auto;bottom:auto;` : 'right:24px;bottom:24px;',
+          `width:${this._width}px`,
+          `height:${this._collapsed ? 'auto' : `${this._height}px`}`,
+        ].join(';');
+
+    const windowClass = [
+      'alp-floating-window',
+      this._collapsed ? 'alp-floating-window--collapsed' : '',
+      this._maximized ? 'alp-floating-window--maximized' : '',
+    ].filter(Boolean).join(' ');
 
     return (
-      <div class={`alp-floating-window${this._collapsed ? ' alp-floating-window--collapsed' : ''}`} style={style} role="dialog" aria-label={this.props.title} aria-modal="false">
+      <div class={windowClass} style={style} role="dialog" aria-label={this.props.title} aria-modal="false">
         <div class="alp-floating-window-header" onpointerdown={(e: PointerEvent) => this._startDrag(e)}>
           {this.props.renderIcon ? (
             <span class="alp-floating-window-icon">{this.props.renderIcon()}</span>
@@ -197,10 +223,17 @@ component FloatingWindow {
             <button
               type="button"
               class="alp-floating-window-btn"
-              onclick={() => this._toggleCollapse()}
-              aria-label={this._collapsed ? 'Expand' : 'Collapse'}
-              title={this._collapsed ? 'Expand' : 'Collapse'}
-            >{this._collapsed ? '▢' : '—'}</button>
+              onclick={() => this._toggleMinimize()}
+              aria-label={this._collapsed ? 'Restore' : 'Minimize'}
+              title={this._collapsed ? 'Restore' : 'Minimize'}
+            >{this._collapsed ? '▭' : '–'}</button>
+            <button
+              type="button"
+              class="alp-floating-window-btn"
+              onclick={() => this._toggleMaximize()}
+              aria-label={this._maximized ? 'Restore' : 'Maximize'}
+              title={this._maximized ? 'Restore' : 'Maximize'}
+            >{this._maximized ? '⧉' : '⛶'}</button>
             <button
               type="button"
               class="alp-floating-window-btn"
@@ -219,7 +252,7 @@ component FloatingWindow {
             {this.props.renderFooter ? (
               <div class="alp-floating-window-footer">{this.props.renderFooter()}</div>
             ) : null}
-            {this.props.resizable !== false ? (
+            {this.props.resizable !== false && !this._maximized ? (
               <div
                 class="alp-floating-window-resizer"
                 onpointerdown={(e: PointerEvent) => this._startResize(e)}

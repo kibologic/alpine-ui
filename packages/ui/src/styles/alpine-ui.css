@@ -375,6 +375,8 @@
 }
 
 .alp-floating-window--collapsed { min-width: 220px; }
+.alp-floating-window--maximized .alp-floating-window-header { cursor: default; }
+.alp-floating-window--maximized .alp-floating-window-header:active { cursor: default; }
 
 .alp-floating-window-header {
   display: flex;
