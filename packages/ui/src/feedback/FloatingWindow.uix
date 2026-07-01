@@ -1,0 +1,234 @@
+import { SwissComponent } from '@swissjs/core';
+
+/**
+ * FloatingWindow — a draggable, resizable, position/size-persisting window
+ * that floats above the current page without navigating away from it.
+ *
+ * Distinct from Modal/SideModal on purpose: those are page-blocking dialogs
+ * (backdrop, centered or edge-docked, no persistence, destroyed on close).
+ * FloatingWindow is a persistent workspace the user keeps open alongside
+ * whatever else they're doing — closer to a devtools panel or a chat widget
+ * than a dialog. Neither Modal nor SideModal support drag, resize, or
+ * remembering where the user left it, so this is new reusable
+ * infrastructure rather than a third one-off overlay.
+ *
+ * IMPORTANT — state preservation: callers should keep this component always
+ * mounted and toggle `open` for show/hide, NOT conditionally render it with
+ * `{open && <FloatingWindow/>}`. This project's UIX components have a known,
+ * previously-debugged issue where conditional-mount/unmount silently resets
+ * child state (see feedback_uix_render_triggered_async_needs_scheduleupdate
+ * project memory) — for a window whose whole point is preserving
+ * conversation history and scroll position across opens, that would defeat
+ * the purpose. `open=false` renders hidden (display:none) instead of null.
+ */
+component FloatingWindow {
+  props = {
+    open: Boolean,
+    title: String,
+    storageKey: String,           // unique per window instance, for position/size/collapsed persistence
+    defaultWidth: Number,         // px, used only if nothing persisted yet
+    defaultHeight: Number,
+    minWidth: Number,
+    minHeight: Number,
+    resizable: Boolean,           // default true
+    draggable: Boolean,           // default true
+    onclose: Function as () => void,
+    onminimize: Function as () => void,   // architecture-ready, not wired to a UI control yet
+    renderIcon: Function as () => any,
+    renderToolbar: Function as () => any,
+    renderBody: Function as () => any,
+    renderFooter: Function as () => any,
+  };
+
+  state { let _x: number | null = null; }        // null = not yet positioned (use default corner)
+  state { let _y: number | null = null; }
+  state { let _width: number = 420; }
+  state { let _height: number = 560; }
+  state { let _collapsed: boolean = false; }
+  state { let _loaded: boolean = false; }
+
+  _dragStartX: number = 0;
+  _dragStartY: number = 0;
+  _dragOriginX: number = 0;
+  _dragOriginY: number = 0;
+  _resizeStartX: number = 0;
+  _resizeStartY: number = 0;
+  _resizeStartW: number = 0;
+  _resizeStartH: number = 0;
+
+  async mounted() {
+    this._width = this.props.defaultWidth || 420;
+    this._height = this.props.defaultHeight || 560;
+    try {
+      const prefs = (window as unknown as { __skltn?: { storage?: { prefs?: { get: (k: string) => Promise<unknown> } } } }).__skltn?.storage?.prefs;
+      const key = this.props.storageKey || 'alp-floating-window';
+      const saved = prefs ? await prefs.get(`floating-window:${key}`) as {
+        x?: number; y?: number; width?: number; height?: number; collapsed?: boolean;
+      } | null : null;
+      if (saved) {
+        if (typeof saved.x === 'number') this._x = saved.x;
+        if (typeof saved.y === 'number') this._y = saved.y;
+        if (typeof saved.width === 'number') this._width = saved.width;
+        if (typeof saved.height === 'number') this._height = saved.height;
+        if (typeof saved.collapsed === 'boolean') this._collapsed = saved.collapsed;
+      }
+    } catch (_) { /* non-fatal — falls back to default position/size */ }
+    this._loaded = true;
+    this.scheduleUpdate?.();
+
+    window.addEventListener('keydown', this._onKeydown);
+    window.addEventListener('resize', this._onViewportResize);
+  }
+
+  unmounted() {
+    window.removeEventListener('keydown', this._onKeydown);
+    window.removeEventListener('resize', this._onViewportResize);
+  }
+
+  _onKeydown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && this.props.open) {
+      const close = this.props.onclose;
+      if (close) close();
+    }
+  };
+
+  // Keep the window on-screen if the viewport shrinks (e.g. rotating a
+  // tablet, or resizing a browser window) below where it was positioned.
+  _onViewportResize = () => {
+    if (this._x === null || this._y === null) return;
+    const maxX = window.innerWidth - 120;
+    const maxY = window.innerHeight - 60;
+    let changed = false;
+    if (this._x > maxX) { this._x = Math.max(8, maxX); changed = true; }
+    if (this._y > maxY) { this._y = Math.max(8, maxY); changed = true; }
+    if (changed) this.scheduleUpdate?.();
+  };
+
+  async _persist() {
+    try {
+      const prefs = (window as unknown as { __skltn?: { storage?: { prefs?: { set: (k: string, v: unknown) => Promise<void> } } } }).__skltn?.storage?.prefs;
+      if (!prefs) return;
+      const key = this.props.storageKey || 'alp-floating-window';
+      await prefs.set(`floating-window:${key}`, {
+        x: this._x, y: this._y, width: this._width, height: this._height, collapsed: this._collapsed,
+      });
+    } catch (_) { /* non-fatal */ }
+  }
+
+  _startDrag(e: PointerEvent) {
+    if (this.props.draggable === false) return;
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLElement).closest('.alp-floating-window')?.getBoundingClientRect();
+    this._dragOriginX = this._x !== null ? this._x : (rect?.left ?? 0);
+    this._dragOriginY = this._y !== null ? this._y : (rect?.top ?? 0);
+    this._dragStartX = e.clientX;
+    this._dragStartY = e.clientY;
+
+    const onMove = (me: PointerEvent) => {
+      const dx = me.clientX - this._dragStartX;
+      const dy = me.clientY - this._dragStartY;
+      this._x = Math.max(0, Math.min(window.innerWidth - 80, this._dragOriginX + dx));
+      this._y = Math.max(0, Math.min(window.innerHeight - 40, this._dragOriginY + dy));
+      this.scheduleUpdate?.();
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      this._persist();
+    };
+    // Pointer Events unify mouse/touch/pen — dragging works on tablets too.
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  _startResize(e: PointerEvent) {
+    if (this.props.resizable === false) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this._resizeStartX = e.clientX;
+    this._resizeStartY = e.clientY;
+    this._resizeStartW = this._width;
+    this._resizeStartH = this._height;
+    const minW = this.props.minWidth || 320;
+    const minH = this.props.minHeight || 360;
+
+    const onMove = (me: PointerEvent) => {
+      const dw = me.clientX - this._resizeStartX;
+      const dh = me.clientY - this._resizeStartY;
+      this._width = Math.max(minW, Math.min(window.innerWidth - 40, this._resizeStartW + dw));
+      this._height = Math.max(minH, Math.min(window.innerHeight - 40, this._resizeStartH + dh));
+      this.scheduleUpdate?.();
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      this._persist();
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  _toggleCollapse() {
+    this._collapsed = !this._collapsed;
+    this.scheduleUpdate?.();
+    this._persist();
+  }
+
+  render() {
+    // Rendered even when closed (display:none) — see class doc comment on
+    // why this deliberately differs from this codebase's usual
+    // {open && <Overlay/>} pattern for shell-level panels.
+    const style = [
+      `display:${this.props.open ? 'flex' : 'none'}`,
+      this._x !== null ? `left:${this._x}px;top:${this._y}px;right:auto;bottom:auto;` : 'right:24px;bottom:24px;',
+      `width:${this._width}px`,
+      `height:${this._collapsed ? 'auto' : `${this._height}px`}`,
+    ].join(';');
+
+    return (
+      <div class={`alp-floating-window${this._collapsed ? ' alp-floating-window--collapsed' : ''}`} style={style} role="dialog" aria-label={this.props.title} aria-modal="false">
+        <div class="alp-floating-window-header" onpointerdown={(e: PointerEvent) => this._startDrag(e)}>
+          {this.props.renderIcon ? (
+            <span class="alp-floating-window-icon">{this.props.renderIcon()}</span>
+          ) : null}
+          <span class="alp-floating-window-title">{this.props.title}</span>
+          <div class="alp-floating-window-toolbar">
+            {this.props.renderToolbar ? this.props.renderToolbar() : null}
+            <button
+              type="button"
+              class="alp-floating-window-btn"
+              onclick={() => this._toggleCollapse()}
+              aria-label={this._collapsed ? 'Expand' : 'Collapse'}
+              title={this._collapsed ? 'Expand' : 'Collapse'}
+            >{this._collapsed ? '▢' : '—'}</button>
+            <button
+              type="button"
+              class="alp-floating-window-btn"
+              onclick={() => { if (this.props.onclose) this.props.onclose(); }}
+              aria-label="Close"
+              title="Close"
+            >✕</button>
+          </div>
+        </div>
+
+        {!this._collapsed ? (
+          <div class="alp-floating-window-content" style="display:contents;">
+            <div class="alp-floating-window-body">
+              {this.props.renderBody ? this.props.renderBody() : null}
+            </div>
+            {this.props.renderFooter ? (
+              <div class="alp-floating-window-footer">{this.props.renderFooter()}</div>
+            ) : null}
+            {this.props.resizable !== false ? (
+              <div
+                class="alp-floating-window-resizer"
+                onpointerdown={(e: PointerEvent) => this._startResize(e)}
+                aria-hidden="true"
+              ></div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+}

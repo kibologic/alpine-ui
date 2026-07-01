@@ -355,6 +355,109 @@
 .alp-modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--color-bg-border); flex-shrink: 0; }
 
 /* ============================================================
+   FloatingWindow — draggable/resizable persistent workspace panel
+   (distinct from Modal: no backdrop, doesn't block the page, position/
+   size persist). z-index sits above other shell overlays (search palette,
+   domain switcher — up to 800) but below critical confirmation dialogs
+   and toasts (1000+), so an urgent confirm still surfaces above it.
+   ============================================================ */
+
+.alp-floating-window {
+  position: fixed;
+  z-index: 850;
+  flex-direction: column;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+  min-width: 280px;
+}
+
+.alp-floating-window--collapsed { min-width: 220px; }
+
+.alp-floating-window-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--color-bg-border);
+  flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.alp-floating-window-header:active { cursor: grabbing; }
+
+.alp-floating-window-icon { display: flex; align-items: center; flex-shrink: 0; }
+
+.alp-floating-window-title {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alp-floating-window-toolbar { display: flex; align-items: center; gap: var(--space-1); flex-shrink: 0; }
+
+.alp-floating-window-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--duration-fast), background var(--duration-fast);
+}
+.alp-floating-window-btn:hover { color: var(--color-text-primary); background: var(--color-bg-elevated); }
+
+.alp-floating-window-body { flex: 1; overflow-y: auto; min-height: 0; }
+.alp-floating-window-footer { flex-shrink: 0; border-top: 1px solid var(--color-bg-border); }
+
+.alp-floating-window-resizer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.alp-floating-window-resizer::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--color-text-muted);
+  border-bottom: 2px solid var(--color-text-muted);
+  opacity: 0.5;
+}
+
+@media (max-width: 640px) {
+  .alp-floating-window {
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    bottom: 8px !important;
+    width: auto !important;
+    max-height: 70vh;
+  }
+  .alp-floating-window-resizer { display: none; }
+}
+
+/* ============================================================
    Page Header
    ============================================================ */
 
