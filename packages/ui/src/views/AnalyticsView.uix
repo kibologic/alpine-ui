@@ -15,15 +15,32 @@ component AnalyticsView {
   };
 
   _chartInstances: any = {};
+  _themeObserver: any = null;
+  _resizeHandler: any = null;
 
-  mounted() { setTimeout(() => this._initCharts(), 60); }
+  mounted() {
+    setTimeout(() => this._initCharts(), 60);
+    this._resizeHandler = () => this._resizeCharts();
+    window.addEventListener('resize', this._resizeHandler);
+    this._themeObserver = new MutationObserver(() => this._initCharts(true));
+    this._themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
   updated() { setTimeout(() => this._initCharts(), 60); }
 
   unmounted() {
+    if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+    this._themeObserver?.disconnect();
     Object.keys(this._chartInstances).forEach((k: any) => {
       try { this._chartInstances[k].dispose(); } catch (_) {}
     });
     this._chartInstances = {};
+  }
+
+  _resizeCharts() {
+    Object.keys(this._chartInstances).forEach((k: any) => {
+      try { this._chartInstances[k].resize(); } catch (_) {}
+    });
   }
 
   _css(prop: string) {
@@ -84,17 +101,26 @@ component AnalyticsView {
     return cfg.options || {};
   }
 
-  _initCharts() {
+  _initCharts(forceRepaint?: boolean) {
     const charts  = this.props.charts || [];
     const echarts = (window as any).echarts;
     if (!echarts) return;
     charts.forEach((cfg: any) => {
       const el = document.getElementById(`alp-chart-${cfg.id}`);
       if (!el) return;
+      if (!el.clientWidth || !el.clientHeight) {
+        requestAnimationFrame(() => this._initCharts(forceRepaint));
+        return;
+      }
+      if (forceRepaint && this._chartInstances[cfg.id]) {
+        try { this._chartInstances[cfg.id].dispose(); } catch (_) {}
+        delete this._chartInstances[cfg.id];
+      }
       if (!this._chartInstances[cfg.id]) {
         this._chartInstances[cfg.id] = echarts.init(el, null, { renderer: 'canvas' });
       }
       this._chartInstances[cfg.id].setOption(this._buildOption(cfg), true);
+      this._chartInstances[cfg.id].resize();
     });
   }
 
