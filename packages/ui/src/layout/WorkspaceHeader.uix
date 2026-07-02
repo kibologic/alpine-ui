@@ -30,15 +30,21 @@ component WorkspaceHeader {
   state { let showViewMenu:    boolean = false; }
   state { let showActionsMenu: boolean = false; }
 
-  mounted() {
-    document.addEventListener('click', (e: MouseEvent) => {
-      if (!e.target.closest('.alp-ws-hdr-drop')) {
-        if (this.showViewMenu || this.showActionsMenu) {
-          this.showViewMenu    = false;
-          this.showActionsMenu = false;
-        }
+  _onDocClick = (e: MouseEvent) => {
+    if (!(e.target as HTMLElement).closest('.alp-ws-hdr-drop')) {
+      if (this.showViewMenu || this.showActionsMenu) {
+        this.showViewMenu    = false;
+        this.showActionsMenu = false;
       }
-    });
+    }
+  };
+
+  mounted() {
+    document.addEventListener('click', this._onDocClick);
+  }
+
+  unmounted() {
+    document.removeEventListener('click', this._onDocClick);
   }
 
   render() {
