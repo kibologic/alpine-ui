@@ -55,25 +55,21 @@ component KpiCard {
         <div class="alp-kpi-header">
           <span class="alp-kpi-label">{label}</span>
           <div style="display:flex;align-items:center;gap:6px;">
-            {icon && <img src={icon as string} width="15" height="15" alt="" style="opacity:0.75;" />}
-            {info && (
-              <div style="position:relative;line-height:0;">
-                <img
-                  src={INFO_SVG}
-                  width="12"
-                  height="12"
-                  alt="info"
-                  style="cursor:default;display:block;"
-                  onMouseEnter={() => { this._tip = true; }}
-                  onMouseLeave={() => { this._tip = false; }}
-                />
-                {this._tip && (
-                  <div style="position:absolute;top:18px;right:0;background:var(--color-text-primary,#111);color:#fff;font-size:11px;line-height:1.4;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:200;pointer-events:none;box-shadow:0 2px 6px rgba(0,0,0,.15);">
-                    {info}
-                  </div>
-                )}
+            <img src={(icon as string) || ''} width="15" height="15" alt="" style={icon ? 'opacity:0.75;' : 'display:none;'} />
+            <div style={info ? 'position:relative;line-height:0;' : 'display:none;'}>
+              <img
+                src={INFO_SVG}
+                width="12"
+                height="12"
+                alt="info"
+                style="cursor:default;display:block;"
+                onMouseEnter={() => { this._tip = true; }}
+                onMouseLeave={() => { this._tip = false; }}
+              />
+              <div style={this._tip ? 'position:absolute;top:18px;right:0;background:var(--color-text-primary,#111);color:#fff;font-size:11px;line-height:1.4;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:200;pointer-events:none;box-shadow:0 2px 6px rgba(0,0,0,.15);' : 'display:none;'}>
+                {info}
               </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -82,25 +78,19 @@ component KpiCard {
         </div>
 
         <div class="alp-kpi-meta" style={(delta || comparison) ? '' : 'display:none;'}>
-          {delta && (
-            <span class={`alp-kpi-trend alp-kpi-trend--${dType}`}>
-              <span class="alp-kpi-trend-sym">{trendChar}</span>
-              {' '}{delta}
-            </span>
-          )}
-          {comparison && (
-            <span class="alp-kpi-comparison">{comparison}</span>
-          )}
+          <span class={`alp-kpi-trend alp-kpi-trend--${dType}`} style={delta ? '' : 'display:none;'}>
+            <span class="alp-kpi-trend-sym">{trendChar}</span>
+            {' '}{delta}
+          </span>
+          <span class="alp-kpi-comparison" style={comparison ? '' : 'display:none;'}>{comparison}</span>
         </div>
 
-        {sparkUri && (
-          <div class="alp-kpi-sparkline">
-            <img src={sparkUri} width="240" height="48" alt="" style="width:100%;height:48px;display:block;" />
-          </div>
-        )}
-        {!sparkUri && renderSparkLine && (
-          <div class="alp-kpi-sparkline">{(renderSparkLine as () => unknown)()}</div>
-        )}
+        <div class="alp-kpi-sparkline" style={sparkUri ? '' : 'display:none;'}>
+          <img src={sparkUri || ''} width="240" height="48" alt="" style="width:100%;height:48px;display:block;" />
+        </div>
+        <div class="alp-kpi-sparkline" style={(!sparkUri && renderSparkLine) ? '' : 'display:none;'}>
+          {!sparkUri && renderSparkLine ? (renderSparkLine as () => unknown)() : null}
+        </div>
       </div>
     );
   }
