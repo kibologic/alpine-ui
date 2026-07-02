@@ -118,6 +118,7 @@ component AnalyticsCard {
 
   _chart: any = null;
   _resizeHandler: any = null;
+  _watchdog: any = null;
   chartId: string = `alp-analytics-card-${Math.random().toString(36).slice(2, 9)}`;
 
   _onDocClick = (e: MouseEvent) => {
@@ -153,6 +154,21 @@ component AnalyticsCard {
     this._resizeHandler = () => { try { this._chart?.resize(); } catch (_) {} };
     window.addEventListener('resize', this._resizeHandler);
     setTimeout(() => this._syncChart(), 60);
+
+    // ECharts paints its <canvas> into the container via direct DOM
+    // manipulation, invisible to the component's vdom. A re-render for a
+    // reason unrelated to chart data (e.g. opening the options menu) can
+    // wipe that child, or even replace the container element itself with a
+    // fresh (empty) one — and neither the `updated()` lifecycle hook nor a
+    // MutationObserver reliably catches every such re-render in this
+    // framework (a known swiss-lib quirk affecting components that mix
+    // imperative DOM writes with the vdom). A lightweight watchdog poll is
+    // the only mechanism that has proven reliable here: cheap, self-healing
+    // regardless of what triggered the wipe, no per-interaction wiring needed.
+    this._watchdog = setInterval(() => {
+      const el = document.getElementById(this.chartId);
+      if (el && el.children.length === 0 && !this.props.loading) this._syncChart();
+    }, 400);
   }
 
   updated() {
@@ -163,6 +179,7 @@ component AnalyticsCard {
     document.removeEventListener('click', this._onDocClick);
     window.removeEventListener('keydown', this._onKeydown);
     if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+    if (this._watchdog) clearInterval(this._watchdog);
     if (this._chart) { try { this._chart.dispose(); } catch (_) {} this._chart = null; }
   }
 
@@ -220,21 +237,37 @@ component AnalyticsCard {
     const el = document.getElementById(this.chartId);
     if (!el) return;
     if (this.props.loading || !this._hasEnoughData(cfg, this.props.data)) {
-      if (this._chart) { try { this._chart.dispose(); } catch (_) {} this._chart = null; }
+      const idle = echarts.getInstanceByDom(el);
+      if (idle) { try { idle.dispose(); } catch (_) {} }
+      this._chart = null;
       return;
     }
     if (!el.clientWidth || !el.clientHeight) {
       requestAnimationFrame(() => this._syncChart());
       return;
     }
-    if (!this._chart) {
-      this._chart = echarts.init(el, null, { renderer: 'canvas' });
+    // The renderer paints a <canvas> into `el` outside the component's vdom.
+    // A re-render can recreate this component instance (resetting `this._chart`
+    // to null) while the framework reuses the same physical DOM node, leaving
+    // a still-registered ECharts instance attached to it — or a re-render for
+    // an unrelated reason can wipe the painted <canvas> child without
+    // disposing the instance. Use echarts' own registry as the source of
+    // truth rather than trusting this component instance's own field.
+    let instance = echarts.getInstanceByDom(el);
+    if (instance && el.children.length === 0) {
+      try { instance.dispose(); } catch (_) {}
+      instance = null;
     }
+    if (!instance) {
+      instance = echarts.init(el, null, { renderer: 'canvas' });
+    }
+    this._chart = instance;
     try {
       const option = this._buildOption(cfg, this.props.data);
       this._chart.setOption(option, true);
       this._chart.resize();
-    } catch (_) {
+    } catch (err) {
+      console.error('[AnalyticsCard] chart render failed:', err);
       try { this._chart.dispose(); } catch (_e) {}
       this._chart = null;
     }
