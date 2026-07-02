@@ -19,9 +19,11 @@ component SideModal {
 
     return (
       <div class="alp-side-modal-container">
-        {this.props.open ? (
-          <div class="alp-side-modal-overlay" onclick={() => this.props.onclose?.()}></div>
-        ) : null}
+        <div
+          class="alp-side-modal-overlay"
+          style={this.props.open ? '' : 'display:none;'}
+          onclick={() => this.props.onclose?.()}
+        ></div>
         <div class={`alp-side-modal alp-side-modal--${size} ${this.props.open ? 'alp-side-modal--open' : ''}`}>
           <div class="alp-side-modal-header">
             <div class="alp-side-modal-header-title">
