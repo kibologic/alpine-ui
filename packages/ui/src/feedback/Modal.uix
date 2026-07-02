@@ -5,6 +5,17 @@ component Modal {
     open: Boolean,
     title: String,
     size: String,
+    // Explicit width override (e.g. "780px") for shapes that don't fit the
+    // sm/md/lg/xl scale. Wins over the size class via inline style.
+    width: String,
+    // Skips Modal's own header/footer chrome entirely and removes body
+    // padding, handing 100% of the interior to renderBody() — for modals
+    // with a custom multi-region layout (e.g. a two-pane checkout) that
+    // don't fit the title+body+footer contract. Backdrop, focus
+    // capture/restore, Escape, and backdrop-click-to-close are unchanged;
+    // only chrome rendering is skipped, so bodyOnly consumers still get
+    // the same shared open/close mechanics as every other Modal.
+    bodyOnly: Boolean,
     onclose: Function as () => void,
     onClose: Function as () => void,
     hideClose: Boolean,
@@ -91,25 +102,30 @@ component Modal {
       this._captureFocus();
     }
     const size = this.props.size || 'md';
+    const dialogStyle = this.props.width ? `width:${this.props.width};max-width:95vw;` : '';
+    const bodyOnly = !!this.props.bodyOnly;
     return (
       <div class="alp-modal-backdrop" style={`display:${this.props.open ? 'flex' : 'none'};`} onclick={() => this.handleBackdropClick()}>
         <div
           class={`alp-modal alp-modal--${size}`}
+          style={dialogStyle}
           onclick={(e: Event) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
-          aria-labelledby={this._titleId}
+          aria-labelledby={bodyOnly ? undefined : this._titleId}
         >
-          <div class="alp-modal-header">
-            <h2 class="alp-modal-title" id={this._titleId}>{this.props.title}</h2>
-            {!this.props.hideClose ? (
-              <button class="alp-modal-close" onclick={() => this.handleClose()} aria-label="Close">✕</button>
-            ) : null}
-          </div>
-          <div class="alp-modal-body">
+          {!bodyOnly ? (
+            <div class="alp-modal-header">
+              <h2 class="alp-modal-title" id={this._titleId}>{this.props.title}</h2>
+              {!this.props.hideClose ? (
+                <button class="alp-modal-close" onclick={() => this.handleClose()} aria-label="Close">✕</button>
+              ) : null}
+            </div>
+          ) : null}
+          <div class="alp-modal-body" style={bodyOnly ? 'padding:0;overflow:hidden;display:flex;flex-direction:column;min-height:0;' : ''}>
             {this.props.renderBody ? this.props.renderBody() : this.props.children}
           </div>
-          {this.props.renderFooter ? (
+          {!bodyOnly && this.props.renderFooter ? (
             <div class="alp-modal-footer">{this.props.renderFooter()}</div>
           ) : null}
         </div>
