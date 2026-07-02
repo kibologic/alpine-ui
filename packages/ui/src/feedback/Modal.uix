@@ -14,6 +14,13 @@ component Modal {
 
   _lastFocused: HTMLElement | null = null;
 
+  // Unique per instance — a hardcoded "alp-modal-title" id here duplicates
+  // across every mounted Modal on the page (multiple Modal instances are
+  // routinely mounted as always-rendered siblings, see the render() note
+  // below), which is invalid HTML and breaks aria-labelledby association
+  // for all but one of them.
+  _titleId: string = `alp-modal-title-${Math.random().toString(36).slice(2)}`;
+
   _onKeydown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.props.open && !this.props.hideClose) {
       const close = this.props.onclose || this.props.onClose;
@@ -91,10 +98,10 @@ component Modal {
           onclick={(e: Event) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
-          aria-labelledby="alp-modal-title"
+          aria-labelledby={this._titleId}
         >
           <div class="alp-modal-header">
-            <h2 class="alp-modal-title" id="alp-modal-title">{this.props.title}</h2>
+            <h2 class="alp-modal-title" id={this._titleId}>{this.props.title}</h2>
             {!this.props.hideClose ? (
               <button class="alp-modal-close" onclick={() => this.handleClose()} aria-label="Close">✕</button>
             ) : null}

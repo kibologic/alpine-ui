@@ -34,6 +34,11 @@ component DeleteConfirmModal {
   state { let reason: string = ''; }
   _prevOpen: boolean = false;
 
+  // Unique per instance — a hardcoded id here would duplicate if this
+  // component is ever mounted more than once on the same page (see the
+  // same fix applied to Modal.uix's title id).
+  _reasonId: string = `alp-delete-confirm-reason-${Math.random().toString(36).slice(2)}`;
+
   _onKeydown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.props.open && !this.props.loading) {
       this.props.oncancel?.();
@@ -100,7 +105,7 @@ component DeleteConfirmModal {
               Reason for deletion <span style="color: var(--danger-color);">*</span>
             </label>
             <textarea
-              id="alp-delete-confirm-reason"
+              id={this._reasonId}
               name="reason"
               placeholder="e.g. Discontinued, Duplicate entry, Entered in error..."
               rows="3"
