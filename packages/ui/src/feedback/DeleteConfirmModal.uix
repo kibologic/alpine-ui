@@ -32,6 +32,7 @@ component DeleteConfirmModal {
   };
 
   state { let reason: string = ''; }
+  _prevOpen: boolean = false;
 
   _onKeydown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && this.props.open && !this.props.loading) {
@@ -52,18 +53,26 @@ component DeleteConfirmModal {
     }
   }
 
-  onOpen() {
-    this.reason = ''
-  }
-
   render() {
-    if (!this.props.open) return null;
+    // Always mounted — never `if (!open) return null`. Root-caused this
+    // session (see feedback_uix_null_return_renderer_bug memory / the
+    // matching Modal.uix/PosCheckoutModal.uix fixes): the swiss-lib
+    // renderer swaps a null-returning component for a placeholder span on
+    // every render, which correlates with real DOM-commit failures for
+    // itself and siblings. CSS-driven visibility avoids it entirely.
+    // Reset-on-open now happens here (mounted() only fires once for an
+    // always-mounted component, not on every re-open) rather than relying
+    // on remount.
+    if (this.props.open && !this._prevOpen) {
+      this.reason = '';
+    }
+    this._prevOpen = this.props.open;
 
     const canSubmit = this.reason.trim().length >= 3 && !this.props.loading;
 
     return (
       <div
-        style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1100; display: flex; align-items: center; justify-content: center; padding: 1rem;"
+        style={`position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1100; display: ${this.props.open ? 'flex' : 'none'}; align-items: center; justify-content: center; padding: 1rem;`}
         onclick={(e: any) => { if (e.target === e.currentTarget && !this.props.loading) this.props.oncancel?.(); }}
       >
         <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 10px; width: 100%; max-width: 440px; padding: 1.75rem; box-shadow: 0 16px 48px rgba(0,0,0,0.2);">
@@ -96,7 +105,7 @@ component DeleteConfirmModal {
               placeholder="e.g. Discontinued, Duplicate entry, Entered in error..."
               rows="3"
               style="width: 100%; padding: 0.625rem 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.875rem; resize: vertical; box-sizing: border-box; font-family: inherit;"
-              oninput={(e: any) => { this.reason = e.target.value }}
+              oninput={(e: any) => { this.reason = e.target.value; this.scheduleUpdate?.(); }}
             >{this.reason}</textarea>
             <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
               Minimum 3 characters required. Reason is saved to the audit log.
