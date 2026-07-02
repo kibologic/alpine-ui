@@ -81,19 +81,17 @@ component KpiCard {
           {isEmpty ? '—' : value}
         </div>
 
-        {(delta || comparison) && (
-          <div class="alp-kpi-meta">
-            {delta && (
-              <span class={`alp-kpi-trend alp-kpi-trend--${dType}`}>
-                <span class="alp-kpi-trend-sym">{trendChar}</span>
-                {' '}{delta}
-              </span>
-            )}
-            {comparison && (
-              <span class="alp-kpi-comparison">{comparison}</span>
-            )}
-          </div>
-        )}
+        <div class="alp-kpi-meta" style={(delta || comparison) ? '' : 'display:none;'}>
+          {delta && (
+            <span class={`alp-kpi-trend alp-kpi-trend--${dType}`}>
+              <span class="alp-kpi-trend-sym">{trendChar}</span>
+              {' '}{delta}
+            </span>
+          )}
+          {comparison && (
+            <span class="alp-kpi-comparison">{comparison}</span>
+          )}
+        </div>
 
         {sparkUri && (
           <div class="alp-kpi-sparkline">
