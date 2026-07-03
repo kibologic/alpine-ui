@@ -35,6 +35,9 @@ Class prefix: .aui-
 - Modal close/X/ESC — fix pending Phase 1
 - Form onchange handlers — fix pending Phase 1
 
+## Security
+- AE-SEC-2 (2026-06-20): Fixed `innerHTML` XSS pattern in 4 components. `RecordHeader`, `FilterMenu`, `SearchBar`, `IconButton` — all 4 were subsequently deleted (2026-07-03 Phase 10 zero-adoption cleanup, confirmed unreferenced anywhere); the fix is moot since the vulnerable code no longer ships, kept here as a historical note only. If any of these components are ever reintroduced, reapply the same pattern: inline SVG JSX instead of `innerHTML`, or `sanitizeIcon()`-style stripping of event-handler attributes/script tags if `innerHTML` is unavoidable for a dynamic icon prop — never pass user-derived strings into it.
+
 - .ui = pure logic, no JSX
 - .uix = has render() returning JSX
 - All styles in alpine-ui.css with .aui- prefix
