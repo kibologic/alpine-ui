@@ -1,11 +1,5 @@
 {
   "name": "alpine-ui",
   "private": true,
-  "type": "module",
-  "pnpm": {
-    "overrides": {
-      "@kibologic/core": "link:../../swiss-lib/packages/core",
-      "@kibologic/compiler": "link:../../swiss-lib/packages/compiler"
-    }
-  }
+  "type": "module"
 }
