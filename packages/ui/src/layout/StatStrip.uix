@@ -14,12 +14,14 @@ interface StatItem {
 component StatStrip {
   props = {
     stats: Array as () => StatItem[],
+    compact: Boolean,
   };
 
   render() {
     const stats: StatItem[] = Array.isArray(this.props.stats) ? this.props.stats as StatItem[] : [];
+    const compact = !!this.props.compact;
     return (
-      <div class="alp-stat-strip">
+      <div class={`alp-stat-strip${compact ? ' alp-stat-strip--compact' : ''}`}>
         {stats.map((s: StatItem) => (
           <KpiCard
             key={s.label}
@@ -30,6 +32,7 @@ component StatStrip {
             comparison={s.comparison}
             sparkline={s.sparkline}
             info={s.info}
+            compact={compact}
           />
         ))}
       </div>

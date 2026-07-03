@@ -1104,6 +1104,11 @@
   margin: 0 20px var(--space-4);
 }
 
+.alp-stat-strip--compact {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--space-2);
+}
+
 /* ============================================================
    DataTable toolbar
    ============================================================ */
@@ -1913,6 +1918,39 @@
   pointer-events: none;
 }
 
+/* Compact variant — for record/detail-page stat strips (StatStrip),
+   where the page already shows full detail below and the strip is a
+   quick-glance summary, not the primary content like a list-view KPI row. */
+.alp-kpi-card--compact {
+  padding: 10px 14px 9px;
+  border-radius: 10px;
+}
+
+.alp-kpi-card--compact .alp-kpi-header {
+  margin-bottom: 4px;
+}
+
+.alp-kpi-card--compact .alp-kpi-label {
+  font-size: 11px;
+}
+
+.alp-kpi-card--compact .alp-kpi-value {
+  font-size: 1.25rem;
+  margin-bottom: 0;
+}
+
+.alp-kpi-card--compact .alp-kpi-meta {
+  margin-top: 2px;
+}
+
+.alp-kpi-card--compact .alp-kpi-sparkline {
+  margin-top: 4px;
+}
+
+.alp-kpi-card--compact .alp-kpi-sparkline img {
+  height: 28px !important;
+}
+
 .alp-kpi-header {
   display: flex;
   align-items: center;
@@ -2236,6 +2274,15 @@
 .alp-ws-hdr-panel-item--primary:hover {
   background: var(--color-sidebar-active, rgba(99,102,241,.08));
   color: var(--color-accent);
+}
+
+.alp-ws-hdr-panel-item--danger {
+  color: var(--color-danger);
+}
+
+.alp-ws-hdr-panel-item--danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 8%, transparent);
+  color: var(--color-danger);
 }
 
 .alp-ws-hdr-panel-item:disabled {

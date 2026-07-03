@@ -12,6 +12,7 @@ component KpiCard {
     sparkline:      Array as () => number[],
     info:           String,
     renderSparkLine: Function as () => unknown,
+    compact:        Boolean,
   };
 
   state { let _tip: boolean = false; }
@@ -32,12 +33,13 @@ component KpiCard {
   }
 
   render() {
-    const { label, value, delta, deltaType, icon, loading, comparison, sparkline, info, renderSparkLine } = this.props;
+    const { label, value, delta, deltaType, icon, loading, comparison, sparkline, info, renderSparkLine, compact } = this.props;
     const dType = (deltaType as string) || 'neutral';
+    const compactClass = compact ? ' alp-kpi-card--compact' : '';
 
     if (loading) {
       return (
-        <div class="alp-kpi-card alp-kpi-card--loading" aria-busy="true">
+        <div class={`alp-kpi-card alp-kpi-card--loading${compactClass}`} aria-busy="true">
           <div class="alp-kpi-skel alp-kpi-skel--sm"></div>
           <div class="alp-kpi-skel alp-kpi-skel--lg"></div>
           <div class="alp-kpi-skel alp-kpi-skel--sm" style="width:60%;"></div>
@@ -51,7 +53,7 @@ component KpiCard {
     const isEmpty   = !value || value === '—';
 
     return (
-      <div class="alp-kpi-card">
+      <div class={`alp-kpi-card${compactClass}`}>
         <div class="alp-kpi-header">
           <span class="alp-kpi-label">{label}</span>
           <div style="display:flex;align-items:center;gap:6px;">
