@@ -1,5 +1,5 @@
 import { SwissComponent } from '@swissjs/core';
-import type { DataTableColumn } from '@kibologic/erp-core';
+import type { DataTableColumn } from '@alpine/erp-core';
 
 component DataTable {
   props = {

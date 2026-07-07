@@ -8,7 +8,7 @@ import { SwissComponent } from '@swissjs/core';
   loading, overflow menu). Every config mutation is reported upward via
   `onConfigChange` — this component never persists anything itself and
   never makes API calls (persistence is the consuming page's job, see
-  the analytics widget config helpers in @kibologic/erp-core).
+  the analytics widget config helpers in @alpine/erp-core).
 
   Props:
     id              String    — widget instance id (DOM ids only, not persistence)

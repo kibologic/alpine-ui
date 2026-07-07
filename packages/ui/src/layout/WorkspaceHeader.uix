@@ -1,5 +1,5 @@
 import { SwissComponent } from '@swissjs/core';
-import type { WorkspaceHeaderAction, WorkspaceHeaderView, WorkspaceHeaderFilter, ShellGlobal } from '@kibologic/erp-core';
+import type { WorkspaceHeaderAction, WorkspaceHeaderView, WorkspaceHeaderFilter, ShellGlobal } from '@alpine/erp-core';
 
 /*
   props:

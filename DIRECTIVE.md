@@ -47,4 +47,4 @@ Class prefix: .aui-
 - [x] Overwrite existing library with the battle-tested 24 components from `alpine-erp-core/packages/ui` — 40 components now in packages/ui/src/, exported via index.ui.
 - [x] Preserve the 7 external-only components (FilterMenu.uix, EmptyState.uix, FormView.uix, KanbanView.uix, AnalyticsView.uix, KpiCard.uix, SearchBar.uix) — all present in index.ui.
 - [x] Consolidate styling dependencies — alpine-ui.css is the single style source with .aui- prefix.
-- [ ] Switch external consumers (`alpine-erp-core`, `alpine-erp`) to rely strictly on this package, severing embedded UI dependencies — PENDING: neither repo currently imports from @kibologic/ui.
+- [ ] Switch external consumers (`alpine-erp-core`, `alpine-erp`) to rely strictly on this package, severing embedded UI dependencies — PENDING: neither repo currently imports from @alpine/ui.
