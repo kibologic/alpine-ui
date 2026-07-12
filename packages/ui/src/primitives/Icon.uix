@@ -1,0 +1,44 @@
+import { SwissComponent } from '@swissjs/core';
+import { ICON_DATA } from './icon-data.ts';
+
+/**
+ * Primitive Icon — the platform's one consistent icon system.
+ *
+ * Backed by Lucide (lucide-static, ISC license), inlined at build time so
+ * there is no runtime fetch and no icon-font FOUC. Renders 24x24 stroke-based
+ * SVGs that inherit color via currentColor, so an icon always matches
+ * surrounding text/token color without extra CSS.
+ *
+ * This exists to replace ad hoc emoji glyphs (lock, check, x, warning,
+ * clipboard, etc.) used across the platform -- see icon-data.ts for how to
+ * add a new name. Migration is incremental: swap an emoji for this component,
+ * passing name plus an optional size, as each module gets touched -- not a
+ * one-time sweep.
+ */
+component Icon {
+  props = {
+    name: String,
+    size: Number,
+    class: String,
+    strokeWidth: Number,
+  };
+
+  render() {
+    const { name, class: className, strokeWidth } = this.props;
+    const size = this.props.size || 16;
+    const inner = ICON_DATA[name as string];
+
+    if (!inner) {
+      if (typeof console !== 'undefined') {
+        console.warn(`[Icon] unknown icon name: "${name}"`);
+      }
+      return null;
+    }
+
+    const svgHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth || 2}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+    const wrapperClass = `aui-icon ${className || ''}`;
+    const wrapperStyle = `width:${size}px;height:${size}px;`;
+
+    return <span class={wrapperClass} style={wrapperStyle} aria-hidden="true" innerHTML={svgHtml}></span>;
+  }
+}

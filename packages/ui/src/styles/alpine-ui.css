@@ -2601,3 +2601,19 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* Icon primitive — see primitives/Icon.uix. Inline SVG sized by the size prop;
+   this just governs layout so an icon sits correctly next to text. */
+.aui-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  vertical-align: middle;
+  line-height: 0;
+}
+.aui-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
