@@ -4,7 +4,9 @@
   "license": "MIT",
   "type": "module",
   "main": "./src/index.ui",
-  "exports": { ".": "./src/index.ui" },
+  "exports": {
+    ".": "./src/index.ui"
+  },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "restricted"
@@ -12,5 +14,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kibologic/alpine-ui.git"
+  },
+  "dependencies": {
+    "lucide-static": "^1.24.0"
   }
 }

@@ -1,0 +1,554 @@
+import { SwissComponent } from '@swissjs/core';
+
+/*
+  Reusable calendar-layout view — sibling to KanbanView/AnalyticsView.
+  Pure presentational: owns no fetching, no toolbar, no navigation state.
+  The consuming page owns events/anchor/mode state (see modules/calendar's
+  CalendarPage.uix for the reference consumer, including its own toolbar,
+  data fetching, and event-detail panel) and passes them in as props, plus
+  callbacks for interaction and hooks for per-consumer styling -- a page
+  embedding this for, say, project deadlines or shift schedules supplies its
+  own getEventColor/renderEventLabel instead of inheriting calendar-module-
+  specific concerns like task-priority coloring.
+
+  props:
+    mode              — 'month' | 'week' | 'day' | 'agenda' | 'resource' | 'timeline'
+    anchor            — Date — the currently focused day/week/month
+    events            — [{ id, title, start_at, end_at, all_day?, ... }]
+    getEventColor     — (event) => cssColor string (defaults to a fixed palette by id hash)
+    renderEventLabel  — (event) => string (defaults to event.title)
+    onEventClick      — (event) => void
+    onDayClick        — (dateKey: string) => void
+    onOverflowClick   — (dateKey: string) => void — month view's "+N more"; omit to hide
+    loading           — Boolean
+    emptyTitle        — string — agenda view only
+    emptyDescription  — string — agenda view only
+
+  resource/timeline-only props (no existing consumer uses these yet -- e.g.
+  room bookings, equipment scheduling, shift assignment -- any module with a
+  literal bookable resource, not calendar-module's own generic events page):
+    resources           — [{ id, label, color? }]
+    getEventResourceId  — (event) => resourceId (defaults to event.resource_id)
+    timelineDays        — number — days shown by the timeline track, anchored
+                           at `anchor` (default 14)
+*/
+
+const DAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['January','February','March','April','May','June',
+                 'July','August','September','October','November','December'];
+const PALETTE = [
+  '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6',
+  '#06b6d4','#ec4899','#f97316','#84cc16',
+];
+
+function dateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function defaultColor(ev: Record<string, unknown>): string {
+  if (ev['color']) return String(ev['color']);
+  const i = Math.abs(
+    String(ev['id'] || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  ) % PALETTE.length;
+  return PALETTE[i];
+}
+
+// ── Hourly time-grid (Week/Day/Resource) ─────────────────────────────────
+// HOUR_HEIGHT is the single lever for the whole grid's scale -- every offset
+// below is derived from it, not a second hardcoded number, so the grid
+// stays internally consistent if this changes.
+const HOUR_HEIGHT = 48; // px per hour
+const GRID_HEIGHT = HOUR_HEIGHT * 24;
+const MIN_EVENT_HEIGHT = 18; // px -- a 5-minute event still needs to be clickable
+
+function minutesSinceMidnight(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+interface TimedLayout {
+  ev: Record<string, unknown>;
+  top: number;
+  height: number;
+  left: number;
+  width: number;
+}
+
+// Clips an event to the given day (dayKey) and returns its start/end in
+// minutes-since-midnight for that day -- a multi-day event only occupies
+// [0, dayStart) or (dayEnd, 1440] on days it doesn't start/end on.
+function clipToDay(ev: Record<string, unknown>, dayKey: string): { startMin: number; endMin: number } {
+  const startDay = String(ev['start_at']).slice(0, 10);
+  const endDay = String(ev['end_at']).slice(0, 10);
+  const startMin = startDay === dayKey ? minutesSinceMidnight(String(ev['start_at']).slice(11, 16)) : 0;
+  const endMin = endDay === dayKey ? minutesSinceMidnight(String(ev['end_at']).slice(11, 16)) : 1440;
+  return { startMin, endMin: Math.max(endMin, startMin + 15) };
+}
+
+// Lane-assignment overlap layout: events are placed left-to-right into the
+// first lane whose previous occupant has already ended, so overlapping
+// events land side-by-side instead of stacking illegibly. Not a full
+// interval-graph clustering algorithm (a lane opened by an early, long
+// event stays "reserved" width-wise for the whole day even after later
+// non-overlapping events could reuse it) -- a deliberate simplicity
+// tradeoff, fine for the handful of concurrent events a real calendar day
+// has.
+function layoutDayEvents(events: Record<string, unknown>[], dayKey: string): TimedLayout[] {
+  const withTimes = events
+    .map((ev) => ({ ev, ...clipToDay(ev, dayKey) }))
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+
+  const laneEnds: number[] = [];
+  const placed = withTimes.map(({ ev, startMin, endMin }) => {
+    let lane = laneEnds.findIndex((end) => end <= startMin);
+    if (lane === -1) { lane = laneEnds.length; laneEnds.push(0); }
+    laneEnds[lane] = endMin;
+    return { ev, startMin, endMin, lane };
+  });
+  const numLanes = Math.max(laneEnds.length, 1);
+
+  return placed.map(({ ev, startMin, endMin, lane }) => ({
+    ev,
+    top: (startMin / 1440) * GRID_HEIGHT,
+    height: Math.max(((endMin - startMin) / 1440) * GRID_HEIGHT, MIN_EVENT_HEIGHT),
+    left: (lane / numLanes) * 100,
+    width: (1 / numLanes) * 100,
+  }));
+}
+
+component CalendarView {
+  props = {
+    mode: String,
+    anchor: Object,
+    events: Array,
+    getEventColor: Function,
+    renderEventLabel: Function,
+    onEventClick: Function,
+    onDayClick: Function,
+    onOverflowClick: Function,
+    loading: Boolean,
+    emptyTitle: String,
+    emptyDescription: String,
+    resources: Array,
+    getEventResourceId: Function,
+    timelineDays: Number,
+  };
+
+  _color(ev: Record<string, unknown>): string {
+    const fn = this.props.getEventColor;
+    return fn ? fn(ev) : defaultColor(ev);
+  }
+
+  _label(ev: Record<string, unknown>): string {
+    const fn = this.props.renderEventLabel;
+    return fn ? fn(ev) : String(ev['title'] || '');
+  }
+
+  _resourceId(ev: Record<string, unknown>): string {
+    const fn = this.props.getEventResourceId;
+    return String(fn ? fn(ev) : (ev['resource_id'] || ''));
+  }
+
+  _eventsForDay(events: Record<string, unknown>[], key: string): Record<string, unknown>[] {
+    return events.filter((e) => {
+      const s = String(e['start_at']).slice(0, 10);
+      const en = String(e['end_at']).slice(0, 10);
+      return s <= key && en >= key;
+    });
+  }
+
+  // "Now" marker: our Day/Agenda views are chronological lists, not an
+  // hourly time-grid, so a literal horizontal NOW line (as in most calendar
+  // mockups) has no time-axis to sit on without introducing one -- which
+  // would be a layout change. This delivers the same information (what's
+  // already happened vs. what's next) as a divider inserted between the
+  // last past event and the next upcoming one, only rendered on today.
+  _nowMarker() {
+    return (
+      <div style="display:flex;align-items:center;gap:8px;padding:2px 16px;margin:2px 0;">
+        <div style="flex:1;height:1px;background:var(--color-danger);opacity:0.4;"></div>
+        <span style="font-size:10px;font-weight:700;color:var(--color-danger);text-transform:uppercase;letter-spacing:0.05em;">Now</span>
+        <div style="flex:1;height:1px;background:var(--color-danger);opacity:0.4;"></div>
+      </div>
+    );
+  }
+
+  _rangeForMonth(anchor: Date): { start: Date } {
+    const s = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    s.setDate(s.getDate() - s.getDay());
+    return { start: s };
+  }
+
+  _renderMonth() {
+    const anchor = this.props.anchor as Date;
+    const events = (this.props.events || []) as Record<string, unknown>[];
+    const onDayClick = this.props.onDayClick;
+    const onEventClick = this.props.onEventClick;
+    const onOverflowClick = this.props.onOverflowClick;
+    const today = dateKey(new Date());
+    const { start } = this._rangeForMonth(anchor);
+    const weeks: Date[][] = [];
+    let cur = new Date(start);
+    for (let w = 0; w < 6; w++) {
+      const week: Date[] = [];
+      for (let d = 0; d < 7; d++) { week.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+      weeks.push(week);
+    }
+    const curMonth = anchor.getMonth();
+    return (
+      <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--color-bg-border);">
+          {DAYS_SHORT.map((d) => (
+            <div key={d} style="padding:6px 0;text-align:center;font-size:11px;font-weight:600;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;">
+              {d}
+            </div>
+          ))}
+        </div>
+        <div style="flex:1;display:grid;grid-template-rows:repeat(6,1fr);min-height:0;">
+          {weeks.map((week, wi) => (
+            <div key={wi} style="display:grid;grid-template-columns:repeat(7,1fr);">
+              {week.map((day) => {
+                const key = dateKey(day);
+                const isToday = key === today;
+                const isOtherMonth = day.getMonth() !== curMonth;
+                const allDayEvs = this._eventsForDay(events, key);
+                const dayEvs = allDayEvs.slice(0, 3);
+                const overflow = allDayEvs.length - 3;
+                return (
+                  <div
+                    key={key}
+                    onClick={() => onDayClick?.(key)}
+                    style="border-right:1px solid var(--color-bg-border);border-bottom:1px solid var(--color-bg-border);padding:4px 5px;cursor:pointer;transition:background 60ms;background:transparent;min-height:0;overflow:hidden;"
+                    onMouseover={(e: MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-elevated)'; }}
+                    onMouseout={(e: MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                  >
+                    <div style={`display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;font-size:12px;font-weight:${isToday ? '700' : '400'};color:${isToday ? '#fff' : isOtherMonth ? 'var(--color-text-muted)' : 'var(--color-text-primary)'};background:${isToday ? 'var(--color-accent)' : 'transparent'};margin-bottom:2px;`}>
+                      {day.getDate()}
+                    </div>
+                    {dayEvs.map((ev, ei) => (
+                      <div
+                        key={ei}
+                        onClick={(e: MouseEvent) => { e.stopPropagation(); onEventClick?.(ev); }}
+                        title={this._label(ev)}
+                        style={`display:block;font-size:10px;line-height:1.3;padding:1px 4px;border-radius:3px;margin-bottom:1px;background:${this._color(ev)};color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;`}
+                      >
+                        {this._label(ev)}
+                      </div>
+                    ))}
+                    {overflow > 0 && onOverflowClick && (
+                      <div
+                        style="font-size:10px;color:var(--color-accent);padding:0 4px;cursor:pointer;"
+                        onClick={(e: MouseEvent) => { e.stopPropagation(); onOverflowClick(key); }}
+                      >+{overflow} more</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Shared hourly-grid renderer -- Week/Day/Resource all delegate here with
+  // their own column list built. A column is one day (Week/Day) or one
+  // resource-for-the-anchor-day (Resource); each carries its own already-
+  // filtered all-day and timed events plus the dayKey to clip/lay out the
+  // timed ones against.
+  _renderHourGrid(columns: { key: string; headerLabel: string; headerSub: string; isToday: boolean; allDayEvs: Record<string, unknown>[]; timedEvs: Record<string, unknown>[]; dayKeyForLayout: string; }[], onColumnClick?: (key: string) => void) {
+    const onEventClick = this.props.onEventClick;
+    const timeColWidth = 52;
+    const cols = `${timeColWidth}px repeat(${columns.length},minmax(80px,1fr))`;
+    const hasAllDay = columns.some((c) => c.allDayEvs.length > 0);
+    const hours = Array.from({ length: 24 }, (_, h) => h);
+    const nowMin = minutesSinceMidnight(new Date().toISOString().slice(11, 16));
+    const nowTop = (nowMin / 1440) * GRID_HEIGHT;
+
+    return (
+      <div style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+
+        {/* Header */}
+        <div style={`display:grid;grid-template-columns:${cols};border-bottom:1px solid var(--color-bg-border);flex-shrink:0;`}>
+          <div></div>
+          {columns.map((col) => (
+            <div key={col.key} onClick={() => onColumnClick?.(col.key)} style="padding:6px 4px;text-align:center;cursor:pointer;border-left:1px solid var(--color-bg-border);">
+              <div style={`font-size:${col.headerSub ? '10px' : '12px'};font-weight:600;${col.headerSub ? 'text-transform:uppercase;letter-spacing:0.04em;' : ''}color:var(--color-text-muted);`}>{col.headerLabel}</div>
+              {col.headerSub && (
+                <div style={`display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;font-size:13px;font-weight:${col.isToday?'700':'400'};color:${col.isToday?'#fff':'var(--color-text-primary)'};background:${col.isToday?'var(--color-accent)':'transparent'};margin-top:2px;`}>{col.headerSub}</div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* All-day strip -- kept out of the hourly grid entirely per REQ */}
+        {hasAllDay && (
+          <div style={`display:grid;grid-template-columns:${cols};border-bottom:1px solid var(--color-bg-border);flex-shrink:0;max-height:88px;overflow-y:auto;`}>
+            <div style="padding:4px 6px 4px 0;font-size:9px;font-weight:600;color:var(--color-text-muted);text-align:right;text-transform:uppercase;">All day</div>
+            {columns.map((col) => (
+              <div key={col.key} style="border-left:1px solid var(--color-bg-border);padding:3px 4px;">
+                {col.allDayEvs.map((ev, ei) => (
+                  <div key={ei} onClick={(e: MouseEvent) => { e.stopPropagation(); onEventClick?.(ev); }} title={this._label(ev)}
+                    style={`font-size:10px;padding:2px 5px;border-radius:3px;margin-bottom:2px;background:${this._color(ev)};color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;`}>
+                    {this._label(ev)}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Hourly body */}
+        <div style="flex:1;overflow-y:auto;">
+          <div style={`display:grid;grid-template-columns:${cols};height:${GRID_HEIGHT}px;position:relative;`}>
+            <div style="position:relative;">
+              {hours.map((h) => (
+                <div key={h} style={`position:absolute;top:${h*HOUR_HEIGHT}px;right:6px;transform:translateY(-50%);font-size:9px;color:var(--color-text-muted);`}>
+                  {String(h).padStart(2,'0')}:00
+                </div>
+              ))}
+            </div>
+            {columns.map((col) => {
+              const laidOut = layoutDayEvents(col.timedEvs, col.dayKeyForLayout);
+              return (
+                <div key={col.key} onClick={() => onColumnClick?.(col.key)} style="position:relative;border-left:1px solid var(--color-bg-border);cursor:pointer;">
+                  {hours.map((h) => (
+                    <div key={h} style={`position:absolute;top:${h*HOUR_HEIGHT}px;left:0;right:0;border-top:1px solid var(--color-bg-border);opacity:${h===0?'0':'0.6'};`}></div>
+                  ))}
+                  {laidOut.map((item, ei) => (
+                    <div
+                      key={ei}
+                      onClick={(e: MouseEvent) => { e.stopPropagation(); onEventClick?.(item.ev); }}
+                      title={this._label(item.ev)}
+                      style={`position:absolute;top:${item.top}px;height:${item.height}px;left:calc(${item.left}% + 2px);width:calc(${item.width}% - 4px);border-radius:3px;padding:2px 4px;background:${this._color(item.ev)};color:#fff;font-size:10px;line-height:1.3;overflow:hidden;cursor:pointer;box-shadow:0 0 0 1px var(--color-bg-surface);`}
+                    >
+                      {!item.ev['all_day'] && <span style="opacity:0.85;">{String(item.ev['start_at']).slice(11,16)} </span>}
+                      {this._label(item.ev)}
+                    </div>
+                  ))}
+                  {col.isToday && (
+                    <div style={`position:absolute;top:${nowTop}px;left:0;right:0;height:0;border-top:2px solid var(--color-danger);z-index:5;pointer-events:none;`}>
+                      <div style="position:absolute;left:-4px;top:-4px;width:8px;height:8px;border-radius:50%;background:var(--color-danger);"></div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  _renderWeek() {
+    const anchor = this.props.anchor as Date;
+    const events = (this.props.events || []) as Record<string, unknown>[];
+    const onDayClick = this.props.onDayClick;
+    const today = dateKey(new Date());
+    const weekStart = new Date(anchor);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    const days: Date[] = [];
+    for (let i = 0; i < 7; i++) { const d = new Date(weekStart); d.setDate(d.getDate() + i); days.push(d); }
+
+    const columns = days.map((day) => {
+      const key = dateKey(day);
+      const dayEvs = this._eventsForDay(events, key);
+      return {
+        key,
+        headerLabel: DAYS_SHORT[day.getDay()],
+        headerSub: String(day.getDate()),
+        isToday: key === today,
+        allDayEvs: dayEvs.filter((e) => e['all_day']),
+        timedEvs: dayEvs.filter((e) => !e['all_day']),
+        dayKeyForLayout: key,
+      };
+    });
+    return this._renderHourGrid(columns, onDayClick);
+  }
+
+  _renderDay() {
+    const anchor = this.props.anchor as Date;
+    const events = (this.props.events || []) as Record<string, unknown>[];
+    const onDayClick = this.props.onDayClick;
+    const key = dateKey(anchor);
+    const dayEvs = this._eventsForDay(events, key);
+    const columns = [{
+      key,
+      headerLabel: DAYS_SHORT[anchor.getDay()],
+      headerSub: String(anchor.getDate()),
+      isToday: key === dateKey(new Date()),
+      allDayEvs: dayEvs.filter((e) => e['all_day']),
+      timedEvs: dayEvs.filter((e) => !e['all_day']),
+      dayKeyForLayout: key,
+    }];
+    return this._renderHourGrid(columns, onDayClick);
+  }
+
+  _renderAgenda() {
+    const events = (this.props.events || []) as Record<string, unknown>[];
+    const onEventClick = this.props.onEventClick;
+    const sortedEvs = [...events].sort((a, b) => String(a['start_at']).localeCompare(String(b['start_at'])));
+    if (sortedEvs.length === 0) {
+      return (
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;">
+          <div style="text-align:center;color:var(--color-text-muted);font-size:13px;">
+            {this.props.emptyTitle || 'No events'}
+            {this.props.emptyDescription && <div style="font-size:12px;margin-top:4px;">{this.props.emptyDescription}</div>}
+          </div>
+        </div>
+      );
+    }
+    let lastDate = '';
+    const today = dateKey(new Date());
+    const nowTime = new Date().toISOString().slice(11, 16); // event times below are compared/displayed as raw UTC HH:MM elsewhere in this file, not localized -- match that
+    let markerShown = false;
+    return (
+      <div style="flex:1;overflow-y:auto;padding:0 0 32px;">
+        {sortedEvs.map((ev, i) => {
+          const dk = String(ev['start_at']).slice(0, 10);
+          const showHeader = dk !== lastDate;
+          lastDate = dk;
+          const d = new Date(dk + 'T00:00:00');
+          const label = `${DAYS_SHORT[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+          let marker = null;
+          if (!markerShown && dk === today && !ev['all_day'] && String(ev['start_at']).slice(11, 16) > nowTime) {
+            marker = this._nowMarker();
+            markerShown = true;
+          }
+          return (
+            <div key={i}>
+              {showHeader && (
+                <div style="padding:10px 16px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-muted);border-top:1px solid var(--color-bg-border);margin-top:4px;">
+                  {label}
+                </div>
+              )}
+              {marker}
+              <div
+                onClick={() => onEventClick?.(ev)}
+                style="display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;transition:background 60ms;"
+                onMouseover={(e: MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'var(--color-bg-elevated)'; }}
+                onMouseout={(e: MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                <div style={`width:3px;height:36px;border-radius:2px;flex-shrink:0;background:${this._color(ev)};`} />
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    {this._label(ev)}
+                  </div>
+                  <div style="font-size:11px;color:var(--color-text-muted);margin-top:1px;">
+                    {ev['all_day'] ? 'All day' : `${String(ev['start_at']).slice(11,16)} – ${String(ev['end_at']).slice(11,16)}`}
+                    {ev['location'] && <span style="margin-left:8px;opacity:0.7;">{String(ev['location'])}</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Resource Grid — Time x Resource for a single day (the anchor). Reuses
+  // Week view's exact visual language (bordered columns, stacked colored
+  // event blocks) with resources as columns instead of days -- e.g. rooms,
+  // equipment, staff. No current consumer has literal resources; this is
+  // here for a future module (room/equipment booking) to opt into.
+  _renderResource() {
+    const anchor = this.props.anchor as Date;
+    const events = (this.props.events || []) as Record<string, unknown>[];
+    const resources = (this.props.resources || []) as Record<string, unknown>[];
+    const key = dateKey(anchor);
+    const dayEvs = this._eventsForDay(events, key);
+
+    if (resources.length === 0) {
+      return <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);font-size:13px;">No resources configured</div>;
+    }
+
+    const columns = resources.map((r) => {
+      const resEvs = dayEvs.filter((ev) => this._resourceId(ev) === String(r['id']));
+      return {
+        key: String(r['id']),
+        headerLabel: String(r['label'] || r['id']),
+        headerSub: '',
+        isToday: key === dateKey(new Date()),
+        allDayEvs: resEvs.filter((e) => e['all_day']),
+        timedEvs: resEvs.filter((e) => !e['all_day']),
+        dayKeyForLayout: key,
+      };
+    });
+    return this._renderHourGrid(columns);
+  }
+
+  // Timeline — one row per resource, a horizontal day-strip per row showing
+  // utilization across timelineDays (default 14) starting at anchor. Same
+  // colored-block language as Month/Week, laid out as a row-per-resource
+  // Gantt-style strip instead of a row-per-week grid. Same "no current
+  // consumer" caveat as _renderResource().
+  _renderTimeline() {
+    const anchor = this.props.anchor as Date;
+    const events = (this.props.events || []) as Record<string, unknown>[];
+    const resources = (this.props.resources || []) as Record<string, unknown>[];
+    const onEventClick = this.props.onEventClick;
+    const onDayClick = this.props.onDayClick;
+    const days = this.props.timelineDays || 14;
+    const today = dateKey(new Date());
+
+    if (resources.length === 0) {
+      return <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);font-size:13px;">No resources configured</div>;
+    }
+
+    const dateRange: Date[] = [];
+    const start = new Date(anchor); start.setHours(0, 0, 0, 0);
+    for (let i = 0; i < days; i++) { const d = new Date(start); d.setDate(d.getDate() + i); dateRange.push(d); }
+
+    return (
+      <div style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:auto;">
+        <div style={`display:grid;grid-template-columns:140px repeat(${days},minmax(64px,1fr));border-bottom:1px solid var(--color-bg-border);flex-shrink:0;`}>
+          <div style="padding:6px 10px;font-size:11px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.05em;">Resource</div>
+          {dateRange.map((d) => (
+            <div key={dateKey(d)} style={`padding:6px 4px;text-align:center;font-size:10px;font-weight:600;color:${dateKey(d) === today ? 'var(--color-accent)' : 'var(--color-text-muted)'};border-left:1px solid var(--color-bg-border);`}>
+              {DAYS_SHORT[d.getDay()]} {d.getDate()}
+            </div>
+          ))}
+        </div>
+        {resources.map((r) => (
+          <div key={String(r['id'])} style={`display:grid;grid-template-columns:140px repeat(${days},minmax(64px,1fr));border-bottom:1px solid var(--color-bg-border);`}>
+            <div style="padding:8px 10px;font-size:12px;font-weight:500;color:var(--color-text-primary);display:flex;align-items:center;gap:6px;">
+              {r['color'] && <span style={`width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${r['color']};`}></span>}
+              {String(r['label'] || r['id'])}
+            </div>
+            {dateRange.map((d) => {
+              const key = dateKey(d);
+              const cellEvs = this._eventsForDay(events, key).filter((ev) => this._resourceId(ev) === String(r['id']));
+              return (
+                <div key={key} onClick={() => onDayClick?.(key)} style="border-left:1px solid var(--color-bg-border);padding:4px;cursor:pointer;min-height:36px;">
+                  {cellEvs.map((ev, ei) => (
+                    <div
+                      key={ei}
+                      onClick={(e: MouseEvent) => { e.stopPropagation(); onEventClick?.(ev); }}
+                      title={this._label(ev)}
+                      style={`height:8px;border-radius:2px;margin-bottom:2px;background:${this._color(ev)};`}
+                    ></div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  render() {
+    if (this.props.loading) {
+      return <div style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--color-text-muted);font-size:13px;">Loading…</div>;
+    }
+    const mode = this.props.mode || 'month';
+    if (mode === 'week') return this._renderWeek();
+    if (mode === 'day') return this._renderDay();
+    if (mode === 'agenda') return this._renderAgenda();
+    if (mode === 'resource') return this._renderResource();
+    if (mode === 'timeline') return this._renderTimeline();
+    return this._renderMonth();
+  }
+}
