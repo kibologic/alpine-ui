@@ -331,24 +331,26 @@ component ReportsHub {
           </div>
         </div>
 
-        {params.length > 0 && (
-          <div class="alp-reports-filters">
-            {params.map((p) => (
-              <div key={p.key as string} class="alp-reports-filter">
-                <label for={`report-param-${p.key}`} class="alp-reports-filter-label">{p.label as string}</label>
-                {this._renderParamInput(p)}
-              </div>
-            ))}
-            <button type="button" class="alp-btn alp-btn--primary" onclick={() => this._run()} disabled={this.runStatus === 'loading'}>
-              {this.runStatus === 'loading' ? 'Running…' : 'Run'}
+        {/* Always rendered, even with zero params (e.g. inventory.stock_valuation)
+            -- this used to be gated on params.length > 0, which meant a
+            param-less report had no Run button anywhere and could never be
+            executed at all. */}
+        <div class="alp-reports-filters">
+          {params.map((p) => (
+            <div key={p.key as string} class="alp-reports-filter">
+              <label for={`report-param-${p.key}`} class="alp-reports-filter-label">{p.label as string}</label>
+              {this._renderParamInput(p)}
+            </div>
+          ))}
+          <button type="button" class="alp-btn alp-btn--primary" onclick={() => this._run()} disabled={this.runStatus === 'loading'}>
+            {this.runStatus === 'loading' ? 'Running…' : 'Run'}
+          </button>
+          {formats.includes('csv') && this.result && (
+            <button type="button" class="alp-btn alp-btn--secondary" onclick={() => this._exportCsv()} disabled={this.exporting}>
+              {this.exporting ? 'Exporting…' : 'Export CSV'}
             </button>
-            {formats.includes('csv') && this.result && (
-              <button type="button" class="alp-btn alp-btn--secondary" onclick={() => this._exportCsv()} disabled={this.exporting}>
-                {this.exporting ? 'Exporting…' : 'Export CSV'}
-              </button>
-            )}
-          </div>
-        )}
+          )}
+        </div>
 
         {this.runStatus === 'error' && (
           <div class="alp-reports-error">{this.runError}</div>
