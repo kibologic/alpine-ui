@@ -1,0 +1,90 @@
+import { SwissComponent } from '@swissjs/core';
+
+/*
+  Time-of-day sub-picker (hours/minutes/[seconds] + 12h/24h). Operates on
+  plain {h,m,s} in 24h internally regardless of display mode -- `use12h`
+  only changes how the hour column renders/increments, never the value
+  DatePicker.uix stores.
+*/
+component TimeSelect {
+  props = {
+    hours:        Number,  // 0-23
+    minutes:      Number,  // 0-59
+    seconds:      Number,  // 0-59
+    showSeconds:  Boolean,
+    use12h:       Boolean,
+    minuteStep:   Number,  // default 5
+    onChange:     Function, // ({hours, minutes, seconds}) => void
+  };
+
+  _emit(patch: Record<string, number>) {
+    this.props.onChange?.({
+      hours: this.props.hours ?? 0,
+      minutes: this.props.minutes ?? 0,
+      seconds: this.props.seconds ?? 0,
+      ...patch,
+    });
+  }
+
+  _setHour12(displayHour: number, isPM: boolean) {
+    let h = displayHour % 12;
+    if (isPM) h += 12;
+    this._emit({ hours: h });
+  }
+
+  render() {
+    const h = this.props.hours ?? 0;
+    const m = this.props.minutes ?? 0;
+    const s = this.props.seconds ?? 0;
+    const use12h = !!this.props.use12h;
+    const step = this.props.minuteStep || 5;
+    const minuteOptions = Array.from({ length: Math.ceil(60 / step) }, (_, i) => i * step);
+    const isPM = h >= 12;
+    const displayHour = use12h ? (h % 12 === 0 ? 12 : h % 12) : h;
+    const hourOptions = use12h ? Array.from({ length: 12 }, (_, i) => i + 1) : Array.from({ length: 24 }, (_, i) => i);
+
+    return (
+      <div class="alp-dp-time" role="group" aria-label="Time">
+        <select
+          class="alp-dp-time-select"
+          aria-label="Hour"
+          value={String(displayHour)}
+          onchange={(e: Event) => {
+            const v = +(e.target as HTMLSelectElement).value;
+            use12h ? this._setHour12(v, isPM) : this._emit({ hours: v });
+          }}
+        >
+          {hourOptions.map((v) => <option key={v} value={String(v)}>{String(v).padStart(2, '0')}</option>)}
+        </select>
+        <span class="alp-dp-time-sep">:</span>
+        <select
+          class="alp-dp-time-select"
+          aria-label="Minute"
+          value={String(m)}
+          onchange={(e: Event) => this._emit({ minutes: +(e.target as HTMLSelectElement).value })}
+        >
+          {minuteOptions.map((v) => <option key={v} value={String(v)}>{String(v).padStart(2, '0')}</option>)}
+        </select>
+        {this.props.showSeconds && (
+          <>
+            <span class="alp-dp-time-sep">:</span>
+            <select
+              class="alp-dp-time-select"
+              aria-label="Second"
+              value={String(s)}
+              onchange={(e: Event) => this._emit({ seconds: +(e.target as HTMLSelectElement).value })}
+            >
+              {Array.from({ length: 60 }, (_, i) => i).map((v) => <option key={v} value={String(v)}>{String(v).padStart(2, '0')}</option>)}
+            </select>
+          </>
+        )}
+        {use12h && (
+          <div class="alp-dp-ampm">
+            <button type="button" class={`alp-dp-ampm-btn${!isPM ? ' alp-dp-ampm-btn--active' : ''}`} onclick={() => this._setHour12(displayHour, false)}>AM</button>
+            <button type="button" class={`alp-dp-ampm-btn${isPM ? ' alp-dp-ampm-btn--active' : ''}`} onclick={() => this._setHour12(displayHour, true)}>PM</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+}

@@ -1,0 +1,111 @@
+import { SwissComponent } from '@swissjs/core';
+import {
+  monthGrid, dateKey, isSameDay, isDateAllowed, weekNumber,
+  localizedWeekdays, DateConstraints,
+} from './date-utils.ui';
+
+/*
+  Pure month-grid renderer, shared by date/datetime/range modes. Owns no
+  selection state itself -- DatePicker.uix passes in what's selected and
+  reacts to click/hover callbacks, same "presentational, page owns state"
+  split as views/CalendarView.uix (this grid's algorithm is a deliberate
+  match to that component's _rangeForMonth/_renderMonth, so the two can be
+  deduped into one shared primitive later without either owner's behavior
+  changing).
+*/
+component CalendarGrid {
+  props = {
+    anchor:            Object,   // Date -- month being displayed
+    locale:            String,
+    selected:          null,     // Date | null -- single-select modes
+    rangeStart:        null,     // Date | null
+    rangeEnd:          null,     // Date | null
+    hoverDate:         null,     // Date | null -- live preview while picking a range end
+    constraints:       Object,   // DateConstraints
+    showWeekNumbers:   Boolean,
+    dayDecorator:      Function, // (date: Date) => { className?: string, content?: string, title?: string } | null
+    onDayClick:        Function, // (date: Date) => void
+    onDayHover:        Function, // (date: Date) => void
+    focusedKey:         String,   // dateKey() of the roving-tabindex focused cell (keyboard nav)
+  };
+
+  _inRange(day: Date): boolean {
+    const { rangeStart, rangeEnd, hoverDate } = this.props;
+    if (!rangeStart) return false;
+    const end = (rangeEnd || hoverDate) as Date | null;
+    if (!end) return false;
+    const [lo, hi] = dateKey(rangeStart) <= dateKey(end) ? [rangeStart, end] : [end, rangeStart];
+    return dateKey(day) >= dateKey(lo) && dateKey(day) <= dateKey(hi);
+  }
+
+  render() {
+    const anchor = this.props.anchor as Date;
+    const locale = this.props.locale || 'en-US';
+    const constraints = (this.props.constraints || {}) as DateConstraints;
+    const weeks = monthGrid(anchor);
+    const today = new Date();
+    const curMonth = anchor.getMonth();
+    const weekdayLabels = localizedWeekdays(locale, 'short');
+
+    return (
+      <div class="alp-dp-grid" role="grid" aria-label="Calendar">
+        <div class="alp-dp-grid-head">
+          {this.props.showWeekNumbers && <div class="alp-dp-grid-head-cell alp-dp-grid-weeknum">Wk</div>}
+          {weekdayLabels.map((d, i) => <div key={i} class="alp-dp-grid-head-cell">{d}</div>)}
+        </div>
+        <div class="alp-dp-grid-body">
+          {weeks.map((week, wi) => (
+            <div key={wi} class="alp-dp-grid-row" role="row">
+              {this.props.showWeekNumbers && <div class="alp-dp-grid-weeknum">{weekNumber(week[0])}</div>}
+              {week.map((day) => {
+                const key = dateKey(day);
+                const isToday = isSameDay(day, today);
+                const isOtherMonth = day.getMonth() !== curMonth;
+                const isSelected = isSameDay(day, this.props.selected as Date | null)
+                  || isSameDay(day, this.props.rangeStart as Date | null)
+                  || isSameDay(day, this.props.rangeEnd as Date | null);
+                const isRangeStart = isSameDay(day, this.props.rangeStart as Date | null);
+                const isRangeEnd = isSameDay(day, (this.props.rangeEnd || this.props.hoverDate) as Date | null) && !!this.props.rangeStart;
+                const inRange = this._inRange(day);
+                const disabled = !isDateAllowed(day, constraints);
+                const deco = this.props.dayDecorator?.(day) || null;
+                const classes = [
+                  'alp-dp-day',
+                  isOtherMonth && 'alp-dp-day--muted',
+                  isToday && 'alp-dp-day--today',
+                  isSelected && 'alp-dp-day--selected',
+                  isRangeStart && 'alp-dp-day--range-start',
+                  isRangeEnd && 'alp-dp-day--range-end',
+                  inRange && !isSelected && 'alp-dp-day--in-range',
+                  disabled && 'alp-dp-day--disabled',
+                  key === this.props.focusedKey && 'alp-dp-day--focused',
+                  deco?.className,
+                ].filter(Boolean).join(' ');
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="gridcell"
+                    class={classes}
+                    disabled={disabled}
+                    tabindex={key === this.props.focusedKey ? 0 : -1}
+                    aria-selected={isSelected}
+                    aria-current={isToday ? 'date' : undefined}
+                    title={deco?.title}
+                    data-date-key={key}
+                    onclick={() => !disabled && this.props.onDayClick?.(day)}
+                    onmouseenter={() => this.props.onDayHover?.(day)}
+                  >
+                    <span class="alp-dp-day-num">{day.getDate()}</span>
+                    {deco?.content && <span class="alp-dp-day-deco">{deco.content}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+}
