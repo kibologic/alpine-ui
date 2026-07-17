@@ -2792,3 +2792,172 @@
   color: var(--color-text-primary);
   margin-bottom: 6px;
 }
+
+/* ── OnboardingProgressBar ─────────────────────────────────────────────── */
+
+.alp-onboard-bar-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.alp-onboard-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-bg-border);
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.alp-onboard-bar:hover {
+  border-color: var(--color-accent);
+}
+
+.alp-onboard-bar-track {
+  position: relative;
+  width: 60px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-bg-border);
+  overflow: hidden;
+}
+
+.alp-onboard-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.alp-onboard-bar-label {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.alp-onboard-bar-dismiss {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.alp-onboard-bar-dismiss:hover {
+  background: var(--color-bg-border);
+  color: var(--color-text-primary);
+}
+
+.alp-onboard-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-sm, 8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 200;
+}
+
+.alp-onboard-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-bg-border);
+}
+
+.alp-onboard-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.alp-onboard-panel-count {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.alp-onboard-panel-list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+}
+
+.alp-onboard-panel-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.alp-onboard-panel-item:hover {
+  background: var(--color-bg-border);
+}
+
+.alp-onboard-panel-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--color-text-muted);
+}
+
+.alp-onboard-panel-dot--required {
+  background: var(--color-danger);
+}
+
+.alp-onboard-panel-dot--recommended {
+  background: var(--color-accent);
+}
+
+.alp-onboard-panel-dot--activation {
+  background: var(--color-warning);
+}
+
+.alp-onboard-panel-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.alp-onboard-panel-item-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.alp-onboard-panel-item-desc {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
