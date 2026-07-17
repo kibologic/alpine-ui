@@ -3039,3 +3039,36 @@
 .alp-onboard-wizard-dot--active {
   background: var(--color-accent);
 }
+
+/* ── Data Sources table (unified import/export/template row actions) ─────── */
+
+.alp-dataimport-options {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6, 24px);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4, 16px);
+}
+
+.alp-dataimport-bulkbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  margin-top: var(--space-4, 16px);
+  padding: var(--space-3, 12px) var(--space-4, 16px);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-md, 8px);
+}
+
+.alp-import-result {
+  padding: var(--space-4, 16px);
+  border: 1px solid var(--color-bg-border);
+  border-left: 3px solid var(--color-bg-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-bg-elevated);
+}
+
+.alp-import-result--success { border-left-color: var(--color-success); }
+.alp-import-result--danger  { border-left-color: var(--color-danger); }
+.alp-import-result--warning { border-left-color: var(--color-warning); }
