@@ -2617,3 +2617,178 @@
   height: 100%;
   display: block;
 }
+
+/* ── Reports Hub — see reports/ReportsHub.uix ─────────────────────────────── */
+
+.alp-reports-hub {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.alp-reports-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  color: var(--color-text-muted);
+  text-align: center;
+  gap: 4px;
+}
+
+.alp-reports-empty--error {
+  color: var(--color-danger);
+}
+
+.alp-reports-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.alp-reports-empty-desc {
+  font-size: 12px;
+}
+
+.alp-reports-category + .alp-reports-category {
+  margin-top: 20px;
+}
+
+.alp-reports-category-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+}
+
+.alp-reports-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.alp-reports-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 14px 16px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.alp-reports-card:hover {
+  box-shadow: 0 3px 10px rgba(0,0,0,.09);
+  border-color: var(--color-border-focus, var(--color-accent));
+}
+
+.alp-reports-card-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.alp-reports-card-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.alp-reports-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.alp-reports-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.alp-reports-detail-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.alp-reports-detail-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.alp-reports-filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-sm, 8px);
+}
+
+.alp-reports-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alp-reports-filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.alp-reports-error {
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 25%, transparent);
+  border-radius: var(--radius-sm, 8px);
+  font-size: 13px;
+  color: var(--color-danger);
+}
+
+.alp-reports-results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.alp-reports-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.alp-reports-chart {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-bg-border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 12px;
+}
+
+.alp-reports-group + .alp-reports-group {
+  margin-top: 12px;
+}
+
+.alp-reports-group-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 6px;
+}

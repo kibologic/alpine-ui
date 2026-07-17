@@ -1,0 +1,384 @@
+import { SwissComponent } from '@swissjs/core';
+import { DataTable } from '../data/DataTable.uix';
+import { Chart } from '../data/Chart.uix';
+import { KpiCard } from '../widgets/KpiCard.uix';
+
+/**
+ * ReportsHub — the reusable reports platform UI (registry/fable/reports/DESIGN.md).
+ *
+ * Alpine Reports is federated: every report a module owns is declared in that
+ * module's manifest (ReportSurface) and discovered centrally. This component
+ * is the ONLY reports UI in the whole platform — modules never build their own
+ * report pages, they just point a nav section at this component with their
+ * own `moduleId`. It renders whatever the catalog says exists for that
+ * module: a picker, a generic filter form (from each report's `params`), and
+ * results as a table (+ optional chart, + a KPI summary strip) — all shaped
+ * entirely by data the owning module's endpoint returns, never hardcoded here.
+ *
+ * `api` is injected rather than imported so this works identically whether
+ * the calling module lives in the same backend as the reports platform
+ * (alpine.core's own `api`) or a different one (a vertical's `enterpriseApi`,
+ * proxied cross-service) -- this component has no opinion on that.
+ */
+component ReportsHub {
+  props = {
+    moduleId:   String,
+    api:        Object,   // { get(url), post(url, body) } — see api.ui / enterpriseApi
+    apiBase:    String,   // e.g. "/api/v1" or "/enterprise/api/v1" — used only for the raw export fetch
+  };
+
+  state { let reports: Record<string, unknown>[] = []; }
+  state { let catalogStatus: string = 'loading'; }
+  state { let activeReport: Record<string, unknown> | null = null; }
+  state { let paramValues: Record<string, string> = {}; }
+  state { let result: Record<string, unknown> | null = null; }
+  state { let runStatus: string = 'idle'; }
+  state { let runError: string = ''; }
+  state { let exporting: boolean = false; }
+
+  async mounted() {
+    await this._loadCatalog();
+  }
+
+  async _loadCatalog() {
+    this.catalogStatus = 'loading';
+    try {
+      const data = await this.props.api.get(`/reports/catalog/${this.props.moduleId}`);
+      this.reports = (data && data.reports) || [];
+      this.catalogStatus = 'success';
+    } catch (e: unknown) {
+      this.catalogStatus = 'error';
+    }
+    this._forceCommit();
+  }
+
+  // Live-confirmed (registry/fable/loading-state/): after an awaited catalog/run load
+  // flips the loading->content branch (a text child becoming a keyed array of elements),
+  // a single scheduleUpdate() -- or even one deferred by a single setTimeout(0) macrotask
+  // -- can still leave the DOM on the stale branch even though the component's own state
+  // is already correct; it can take several real, separately-scheduled attempts before
+  // the DOM catches up. Root cause not yet isolated in a unit repro (registry/fable/
+  // loading-state/INVESTIGATION-LOG.md); this retries scheduleUpdate() across a few
+  // animation frames as the verified live workaround, not a framework fix.
+  _forceCommit(attempt: number = 0) {
+    this.scheduleUpdate?.();
+    if (attempt >= 5) return;
+    requestAnimationFrame(() => this._forceCommit(attempt + 1));
+  }
+
+  _openReport(report: Record<string, unknown>) {
+    this.activeReport = report;
+    this.result = null;
+    this.runStatus = 'idle';
+    this.runError = '';
+    const defaults: Record<string, string> = {};
+    for (const p of (report.params as Record<string, unknown>[]) || []) {
+      if (p.default != null) defaults[p.key as string] = String(p.default);
+    }
+    this.paramValues = defaults;
+    this.scheduleUpdate?.();
+  }
+
+  _closeReport() {
+    this.activeReport = null;
+    this.result = null;
+    this.scheduleUpdate?.();
+  }
+
+  _setParam(key: string, value: string) {
+    this.paramValues = { ...this.paramValues, [key]: value };
+    this.scheduleUpdate?.();
+  }
+
+  async _run() {
+    if (!this.activeReport) return;
+    this.runStatus = 'loading';
+    this.runError = '';
+    this.scheduleUpdate?.();
+    try {
+      const reportId = this.activeReport.report_id as string;
+      const data = await this.props.api.post(`/reports/${reportId}/run`, { params: this.paramValues });
+      this.result = data;
+      this.runStatus = 'success';
+    } catch (e: unknown) {
+      this.runError = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        || (e as Error)?.message || 'Failed to run report';
+      this.runStatus = 'error';
+    }
+    this._forceCommit();
+  }
+
+  async _exportCsv() {
+    if (!this.activeReport) return;
+    this.exporting = true;
+    this.scheduleUpdate?.();
+    try {
+      const reportId = this.activeReport.report_id as string;
+      const csrfMatch = document.cookie.split('; ').find((c) => c.startsWith('alpine_csrf='));
+      const csrf = csrfMatch ? decodeURIComponent(csrfMatch.split('=')[1]) : '';
+      const tenantId = await this._resolveTenantId();
+      const res = await fetch(`${this.props.apiBase}/reports/${reportId}/export?format=csv`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrf,
+          'X-Tenant-ID': tenantId || '',
+        },
+        body: JSON.stringify({ params: this.paramValues }),
+      });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const filename = `${reportId.replace(/\./g, '_')}.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      this.runError = (e as Error)?.message || 'Export failed';
+    }
+    this.exporting = false;
+    this.scheduleUpdate?.();
+  }
+
+  async _resolveTenantId(): Promise<string> {
+    try {
+      const w = window as unknown as { __skltn?: { storage?: { auth?: { get: (k: string) => Promise<unknown> } } } };
+      const fromAuth = await w.__skltn?.storage?.auth?.get('tenant-id');
+      if (fromAuth) return String(fromAuth);
+    } catch (_) { /* fall through */ }
+    return localStorage.getItem('alpine-tenant-id') || '';
+  }
+
+  _fmtCell(value: unknown, type: string): string {
+    if (value == null) return '—';
+    if (type === 'currency') {
+      const n = parseFloat(String(value));
+      return isNaN(n) ? String(value) : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    if (type === 'percent') {
+      const n = parseFloat(String(value));
+      return isNaN(n) ? String(value) : `${n.toFixed(1)}%`;
+    }
+    return String(value);
+  }
+
+  _buildChartOption(): Record<string, unknown> | null {
+    const chart = this.activeReport?.chart as Record<string, unknown> | null;
+    const rows = (this.result?.rows as Record<string, unknown>[]) || [];
+    if (!chart || rows.length === 0) return null;
+    const xKey = chart.x as string;
+    const yKeys = chart.y as string[];
+    const categories = rows.map((r) => String(r[xKey] ?? ''));
+    const series = yKeys.map((yKey) => ({
+      name: yKey,
+      type: chart.type === 'pie' ? 'pie' : (chart.type as string),
+      data: rows.map((r) => parseFloat(String(r[yKey] ?? 0)) || 0),
+    }));
+    return {
+      tooltip: { trigger: 'axis' },
+      legend: yKeys.length > 1 ? { data: yKeys } : undefined,
+      xAxis: chart.type === 'pie' ? undefined : { type: 'category', data: categories },
+      yAxis: chart.type === 'pie' ? undefined : { type: 'value' },
+      series,
+    };
+  }
+
+  _renderCatalog() {
+    if (this.catalogStatus === 'loading') {
+      return <div class="alp-reports-empty">Loading reports…</div>;
+    }
+    if (this.catalogStatus === 'error') {
+      return <div class="alp-reports-empty alp-reports-empty--error">Failed to load reports.</div>;
+    }
+    if (this.reports.length === 0) {
+      return (
+        <div class="alp-reports-empty">
+          <div class="alp-reports-empty-title">No reports yet</div>
+          <div class="alp-reports-empty-desc">This module hasn't published any reports.</div>
+        </div>
+      );
+    }
+    const byCategory: Record<string, Record<string, unknown>[]> = {};
+    for (const r of this.reports) {
+      const cat = String(r.category || 'General');
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(r);
+    }
+    return (
+      <div class="alp-reports-catalog">
+        {Object.keys(byCategory).map((cat) => (
+          <div key={cat} class="alp-reports-category">
+            <div class="alp-reports-category-label">{cat}</div>
+            <div class="alp-reports-grid">
+              {byCategory[cat].map((r) => (
+                <button
+                  type="button"
+                  key={r.report_id as string}
+                  class="alp-reports-card"
+                  onclick={() => this._openReport(r)}
+                >
+                  <div class="alp-reports-card-label">{r.label as string}</div>
+                  <div class="alp-reports-card-desc">{r.description as string}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  _renderParamInput(param: Record<string, unknown>) {
+    const key = param.key as string;
+    const id = `report-param-${key}`;
+    const value = this.paramValues[key] || '';
+    if (param.type === 'select') {
+      return (
+        <select id={id} name={key} class="alp-input" value={value} onchange={(e: Event) => this._setParam(key, (e.target as HTMLSelectElement).value)}>
+          <option value="">—</option>
+          {((param.options as Record<string, string>[]) || []).map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      );
+    }
+    const inputType = param.type === 'date' ? 'date' : param.type === 'number' ? 'number' : 'text';
+    return (
+      <input
+        id={id}
+        name={key}
+        type={inputType}
+        class="alp-input"
+        value={value}
+        onchange={(e: Event) => this._setParam(key, (e.target as HTMLInputElement).value)}
+      />
+    );
+  }
+
+  _renderReport() {
+    const report = this.activeReport as Record<string, unknown>;
+    const params = (report.params as Record<string, unknown>[]) || [];
+    const columns = (report.columns as Record<string, unknown>[]) || [];
+    const formats = (report.formats as string[]) || [];
+    const rows = (this.result?.rows as Record<string, unknown>[]) || [];
+    const summary = (this.result?.summary as Record<string, unknown>[]) || [];
+    const chartOption = this.runStatus === 'success' ? this._buildChartOption() : null;
+
+    const dtColumns = columns.map((c) => ({
+      key: c.key as string,
+      label: c.label as string,
+      align: c.align as string,
+      render: (val: unknown) => this._fmtCell(val, c.type as string),
+    }));
+
+    // Reports whose rows carry a "_group" key (e.g. P&L's Revenue/Expense
+    // lines) render as one labeled table per group rather than a single flat
+    // table with no way to tell sections apart. Group order follows first
+    // appearance in `rows`, which is the owning module's own ordering.
+    const hasGroups = rows.some((r) => r._group != null);
+    const groupOrder: string[] = [];
+    const groupedRows: Record<string, Record<string, unknown>[]> = {};
+    if (hasGroups) {
+      for (const r of rows) {
+        const g = String(r._group ?? '');
+        if (!groupedRows[g]) { groupedRows[g] = []; groupOrder.push(g); }
+        groupedRows[g].push(r);
+      }
+    }
+
+    return (
+      <div class="alp-reports-detail">
+        <div class="alp-reports-detail-header">
+          <button type="button" class="alp-btn alp-btn--ghost" onclick={() => this._closeReport()}>← Reports</button>
+          <div class="alp-reports-detail-title">
+            <div class="alp-reports-detail-label">{report.label as string}</div>
+            <div class="alp-reports-detail-desc">{report.description as string}</div>
+          </div>
+        </div>
+
+        {params.length > 0 && (
+          <div class="alp-reports-filters">
+            {params.map((p) => (
+              <div key={p.key as string} class="alp-reports-filter">
+                <label for={`report-param-${p.key}`} class="alp-reports-filter-label">{p.label as string}</label>
+                {this._renderParamInput(p)}
+              </div>
+            ))}
+            <button type="button" class="alp-btn alp-btn--primary" onclick={() => this._run()} disabled={this.runStatus === 'loading'}>
+              {this.runStatus === 'loading' ? 'Running…' : 'Run'}
+            </button>
+            {formats.includes('csv') && this.result && (
+              <button type="button" class="alp-btn alp-btn--secondary" onclick={() => this._exportCsv()} disabled={this.exporting}>
+                {this.exporting ? 'Exporting…' : 'Export CSV'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {this.runStatus === 'error' && (
+          <div class="alp-reports-error">{this.runError}</div>
+        )}
+
+        {this.runStatus === 'success' && (
+          <div class="alp-reports-results">
+            {summary.length > 0 && (
+              <div class="alp-reports-summary">
+                {summary.map((s) => (
+                  <KpiCard
+                    key={s.label as string}
+                    label={s.label as string}
+                    value={this._fmtCell(s.value, (s.type as string) || 'string')}
+                  />
+                ))}
+              </div>
+            )}
+
+            {chartOption && (
+              <div class="alp-reports-chart">
+                <Chart data={chartOption} height="280px" />
+              </div>
+            )}
+
+            {hasGroups ? (
+              groupOrder.map((g) => (
+                <div key={g} class="alp-reports-group">
+                  <div class="alp-reports-group-label">{g}</div>
+                  <DataTable
+                    id={`report-${report.report_id as string}-${g}`}
+                    columns={dtColumns}
+                    rows={groupedRows[g]}
+                    loading={false}
+                    emptyTitle="No data for this range"
+                    emptyDescription="Try widening the filters above."
+                  />
+                </div>
+              ))
+            ) : (
+              <DataTable
+                id={`report-${report.report_id as string}`}
+                columns={dtColumns}
+                rows={rows}
+                loading={false}
+                emptyTitle="No data for this range"
+                emptyDescription="Try widening the filters above."
+              />
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  render() {
+    return (
+      <div class="alp-reports-hub">
+        {this.activeReport ? this._renderReport() : this._renderCatalog()}
+      </div>
+    );
+  }
+}
