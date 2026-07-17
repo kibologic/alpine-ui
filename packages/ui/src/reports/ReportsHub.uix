@@ -3,6 +3,7 @@ import type { ShellGlobal } from '@alpine/erp-core';
 import { DataTable } from '../data/DataTable.uix';
 import { Chart } from '../data/Chart.uix';
 import { KpiCard } from '../widgets/KpiCard.uix';
+import { DatePicker } from '../form/DatePicker.uix';
 
 /**
  * ReportsHub — the reusable reports platform UI (registry/fable/reports/DESIGN.md).
@@ -278,7 +279,17 @@ component ReportsHub {
         </select>
       );
     }
-    const inputType = param.type === 'date' ? 'date' : param.type === 'number' ? 'number' : 'text';
+    if (param.type === 'date') {
+      return (
+        <DatePicker
+          mode="date"
+          value={value || null}
+          placeholder="Select date"
+          onchange={(v: string) => this._setParam(key, v || '')}
+        />
+      );
+    }
+    const inputType = param.type === 'number' ? 'number' : 'text';
     return (
       <input
         id={id}
