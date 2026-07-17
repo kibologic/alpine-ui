@@ -90,7 +90,7 @@ component ReportsHub {
     }
     this.paramValues = defaults;
     if (push) this._pushReport(report.report_id as string, report.label as string);
-    this.scheduleUpdate?.();
+    this._forceCommit();
   }
 
   // Pushes a workspace history entry so the shell's own Back/Forward buttons
@@ -114,7 +114,7 @@ component ReportsHub {
   _closeReport() {
     this.activeReport = null;
     this.result = null;
-    this.scheduleUpdate?.();
+    this._forceCommit();
   }
 
   _setParam(key: string, value: string) {
