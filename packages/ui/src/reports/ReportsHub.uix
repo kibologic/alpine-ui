@@ -1,4 +1,5 @@
 import { SwissComponent } from '@swissjs/core';
+import type { ShellGlobal } from '@alpine/erp-core';
 import { DataTable } from '../data/DataTable.uix';
 import { Chart } from '../data/Chart.uix';
 import { KpiCard } from '../widgets/KpiCard.uix';
@@ -25,6 +26,7 @@ component ReportsHub {
     moduleId:   String,
     api:        Object,   // { get(url), post(url, body) } — see api.ui / enterpriseApi
     apiBase:    String,   // e.g. "/api/v1" or "/enterprise/api/v1" — used only for the raw export fetch
+    route:      Object,   // forwarded from the owning page — see _pushReport/render()'s route sync
   };
 
   state { let reports: Record<string, unknown>[] = []; }
@@ -35,6 +37,12 @@ component ReportsHub {
   state { let runStatus: string = 'idle'; }
   state { let runError: string = ''; }
   state { let exporting: boolean = false; }
+
+  // Plain (non-reactive) dedup guard for the route->view sync in render() — see
+  // UsersPage.uix's identical `_cachedRouteId` pattern, the canonical reference
+  // for a list<->detail toggle driven by workspace history instead of an
+  // in-page back button.
+  _cachedRouteId: string | null = null;
 
   async mounted() {
     await this._loadCatalog();
@@ -66,7 +74,11 @@ component ReportsHub {
     requestAnimationFrame(() => this._forceCommit(attempt + 1));
   }
 
-  _openReport(report: Record<string, unknown>) {
+  // `push` is false only when this call is restoring `activeReport` from an
+  // already-current route (route sync in render()) — pushing again there
+  // would double up the workspace history entry the user's click already
+  // created.
+  _openReport(report: Record<string, unknown>, push: boolean = true) {
     this.activeReport = report;
     this.result = null;
     this.runStatus = 'idle';
@@ -76,7 +88,26 @@ component ReportsHub {
       if (p.default != null) defaults[p.key as string] = String(p.default);
     }
     this.paramValues = defaults;
+    if (push) this._pushReport(report.report_id as string, report.label as string);
     this.scheduleUpdate?.();
+  }
+
+  // Pushes a workspace history entry so the shell's own Back/Forward buttons
+  // (Topbar.uix) drive the catalog<->detail toggle -- the in-page "← Reports"
+  // button this replaced was redundant with navigation the shell already
+  // provides for every active view (registry/fable/ — canonical pattern is
+  // UsersPage.uix's _pushRecord/_backToUserList).
+  _pushReport(id: string, title: string) {
+    const _ws = (window as unknown as { __skltn?: ShellGlobal }).__skltn?.registry?.get('workspace');
+    const _a = _ws?.getActive?.();
+    if (!_a) return;
+    _ws.push(_a.id, {
+      route: _a.stack?.[_a.currentIndex]?.route || `/reports/${this.props.moduleId}`,
+      params: { reportId: id },
+      moduleId: _a.moduleId,
+      sectionId: _a.sectionId,
+      title,
+    });
   }
 
   _closeReport() {
@@ -294,7 +325,6 @@ component ReportsHub {
     return (
       <div class="alp-reports-detail">
         <div class="alp-reports-detail-header">
-          <button type="button" class="alp-btn alp-btn--ghost" onclick={() => this._closeReport()}>← Reports</button>
           <div class="alp-reports-detail-title">
             <div class="alp-reports-detail-label">{report.label as string}</div>
             <div class="alp-reports-detail-desc">{report.description as string}</div>
@@ -375,6 +405,30 @@ component ReportsHub {
   }
 
   render() {
+    // Route-driven catalog<->detail toggle: the shell's own Back/Forward
+    // buttons pop/push workspace history, which flows back down as
+    // this.props.route.params.reportId — no in-page back button needed (see
+    // _pushReport). Mirrors UsersPage.uix's recordId sync exactly.
+    const _rid = this.props.route?.params?.reportId ?? null;
+    if (_rid !== this._cachedRouteId) {
+      this._cachedRouteId = _rid;
+      Promise.resolve().then(() => {
+        if (!_rid && this.activeReport) {
+          this._closeReport();
+        } else if (_rid && String(this.activeReport?.report_id) !== String(_rid)) {
+          const found = (this.reports || []).find((r) => String(r.report_id) === String(_rid));
+          if (found) this._openReport(found, false);
+        }
+      });
+    }
+    // Catalog loads asynchronously after mount -- if the route already names
+    // a report before that fetch resolves (e.g. a hard refresh landing
+    // directly on a report tab), retry once the catalog arrives.
+    if (_rid && !this.activeReport && this.reports.length > 0) {
+      const found = this.reports.find((r) => String(r.report_id) === String(_rid));
+      if (found) Promise.resolve().then(() => this._openReport(found, false));
+    }
+
     return (
       <div class="alp-reports-hub">
         {this.activeReport ? this._renderReport() : this._renderCatalog()}
