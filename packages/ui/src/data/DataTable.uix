@@ -140,6 +140,7 @@ component DataTable {
     const next = { ...this.selectedIds };
     if (next[id]) { delete next[id]; } else { next[id] = true; }
     this.selectedIds = next;
+    this._emitSelectionChange();
   }
 
   toggleAll(visibleRows: Record<string, unknown>[]) {
@@ -151,6 +152,17 @@ component DataTable {
       visibleRows.forEach(r => { const id = String(r.id || r._id); next[id] = true; });
     }
     this.selectedIds = next;
+    this._emitSelectionChange();
+  }
+
+  // `onSelectionChange` was declared as a prop but never actually called
+  // anywhere in this file -- any consumer passing it (e.g. a bulk-action
+  // bar) silently never received a selection. Emits the full selected row
+  // objects (not just ids), matching the prop's own declared type.
+  _emitSelectionChange() {
+    if (typeof this.props.onSelectionChange !== 'function') return;
+    const selected = (this.props.rows || []).filter((r: Record<string, unknown>) => this.isSelected(r));
+    this.props.onSelectionChange(selected);
   }
 
   toggleCol(key: string) {
