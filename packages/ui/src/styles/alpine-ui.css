@@ -2961,3 +2961,35 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── OnboardingPrompt (embedded contextual card) ──────────────────────── */
+
+.alp-onboard-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--color-accent) 8%, var(--color-bg-surface));
+  border: 1px solid color-mix(in srgb, var(--color-accent) 25%, var(--color-bg-border));
+  border-radius: var(--radius-sm, 8px);
+  margin-bottom: 16px;
+}
+
+.alp-onboard-prompt-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.alp-onboard-prompt-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.alp-onboard-prompt-desc {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
