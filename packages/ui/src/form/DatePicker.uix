@@ -1,6 +1,7 @@
 import { SwissComponent } from '@swissjs/core';
 import { CalendarGrid } from './date-picker/CalendarGrid.uix';
 import { TimeSelect } from './date-picker/TimeSelect.uix';
+import { Icon } from '../primitives/Icon.uix';
 import {
   dateKey, isSameDay, isDateAllowed, parseTypedDate, formatValue, getShortcuts,
   getLocale, localizedMonths, addMonths, addYears, addDays, startOfDay,
@@ -77,12 +78,44 @@ component DatePicker {
   state { let inputTextEnd: string = ''; }  // range mode's "To" field
   state { let focusedKey: string = ''; }
 
-  _uid: string = Math.random().toString(36).slice(2, 8);
+  // Unique per instance -- multiple DatePickers are routinely mounted as
+  // siblings (e.g. a report's From/To params), so a hardcoded id/class would
+  // make the outside-click check below (and aria-controls) ambiguous about
+  // which instance a click or popup actually belongs to. Same pattern as
+  // Modal.uix's _titleId.
+  _uid: string = `alp-dp-${Math.random().toString(36).slice(2, 10)}`;
   _locale: string = getLocale();
 
   mounted() {
     this._syncFromValue();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('mousedown', this._onDocumentMouseDown);
+    }
   }
+
+  unmounted() {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('mousedown', this._onDocumentMouseDown);
+    }
+  }
+
+  // Bound as a class property (not a method) so add/removeEventListener see
+  // the same function reference across mounted()/unmounted().
+  //
+  // Replaces an earlier onblur-capture-based close: that only fires when
+  // focus actually moves to another element, but clicking a non-focusable
+  // target (a plain div, blank page background -- the common case) never
+  // shifts focus away from the input at all, so the popup just sat open
+  // forever. A document-level mousedown + closest() check (matching
+  // DataTable.uix's own outside-click pattern) doesn't depend on focus
+  // semantics at all -- it fires on every click anywhere, scoped to this
+  // exact instance via the unique _uid id so sibling DatePickers (e.g. a
+  // report's From/To fields) never interfere with each other.
+  _onDocumentMouseDown = (e: MouseEvent) => {
+    if (!this.open) return;
+    const target = e.target as HTMLElement;
+    if (!target.closest(`#${this._uid}`)) this._close();
+  };
 
   _isRange(): boolean { return this.props.mode === 'range' || this.props.mode === 'datetime_range'; }
   _hasTime(): boolean { return this.props.mode === 'datetime' || this.props.mode === 'datetime_range'; }
@@ -355,7 +388,7 @@ component DatePicker {
       : this.pickerLevel;
 
     return (
-      <div class="alp-dp-popup">
+      <div id={`${this._uid}-popup`} class="alp-dp-popup" role="dialog" aria-label={`${this.props.mode === 'time' ? 'Time' : 'Date'} picker`} aria-modal="false">
         {showShortcuts && this._renderShortcuts()}
         <div class="alp-dp-popup-body">
           {level === 'days' && this._renderCalendarHeader()}
@@ -421,14 +454,14 @@ component DatePicker {
 
   render() {
     const hasError = !!this.props.error;
-    const icon = this.props.mode === 'time' ? '🕐' : '📅';
+    const iconName = this.props.mode === 'time' ? 'clock' : 'calendar';
+
+    const popupId = `${this._uid}-popup`;
 
     return (
       <div
+        id={this._uid}
         class="alp-input-wrap alp-input-wrap--md alp-dp-wrap"
-        onblur-capture={(e: FocusEvent) => {
-          if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) this._close();
-        }}
         onkeydown={(e: KeyboardEvent) => this._handleKey(e)}
       >
         <div class="alp-dp-field">
@@ -456,6 +489,7 @@ component DatePicker {
             }}
             aria-haspopup="dialog"
             aria-expanded={this.open}
+            aria-controls={popupId}
           />
           {this._isRange() && (
             <>
@@ -472,10 +506,13 @@ component DatePicker {
                 oninput={(e: Event) => { this.inputTextEnd = (e.target as HTMLInputElement).value; }}
                 onblur={() => this._commitTyped(this.inputTextEnd, true)}
                 onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.stopPropagation(); this._commitTyped(this.inputTextEnd, true); } }}
+                aria-haspopup="dialog"
+                aria-expanded={this.open}
+                aria-controls={popupId}
               />
             </>
           )}
-          <span class="alp-dp-icon" aria-hidden="true">{icon}</span>
+          <Icon name={iconName} size={14} class="alp-dp-icon" />
         </div>
         {hasError ? <span class="alp-field-error">{this.props.error}</span> : null}
         {this.open && this._renderPopup()}
