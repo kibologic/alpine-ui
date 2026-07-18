@@ -1,4 +1,8 @@
 import { SwissComponent } from '@swissjs/core';
+// AR-041: option-building logic (pure functions of cfg/data, no component
+// state) split out to keep this file under the 700-line limit -- see
+// chart-options.ui's own docstring for the split rationale.
+import { PALETTES, cssVar, hasEnoughData, summaryText, buildChartOption } from './chart-options.ui';
 
 /*
   AnalyticsCard — canonical, reusable analytics widget.
@@ -35,13 +39,6 @@ const DEFAULT_CONFIG = {
   animations: true,
   colorPalette: 'default',
   customTitle: null,
-};
-
-const PALETTES: Record<string, string[]> = {
-  default: ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#3b82f6', '#8b5cf6', '#06b6d4'],
-  cool:    ['#3b82f6', '#6366f1', '#8b5cf6', '#06b6d4', '#0ea5e9', '#14b8a6', '#818cf8'],
-  warm:    ['#f59e0b', '#ef4444', '#f97316', '#eab308', '#fb7185', '#f43f5e', '#fbbf24'],
-  mono:    ['#6366f1', '#818cf8', '#a5b4fc', '#4f46e5', '#c7d2fe', '#4338ca', '#e0e7ff'],
 };
 
 const CHART_TYPES: Array<{ id: string; label: string; category: string; disabled?: boolean }> = [
@@ -206,37 +203,13 @@ component AnalyticsCard {
 
   // ---- chart lifecycle ----
 
-  _css(prop: string): string {
-    return getComputedStyle(document.documentElement).getPropertyValue(prop).trim();
-  }
-
-  _palette(cfg: Record<string, unknown>): string[] {
-    return PALETTES[cfg.colorPalette as string] || PALETTES.default;
-  }
-
-  _hasEnoughData(cfg: Record<string, unknown>, data: any): boolean {
-    if (!data) return false;
-    const t = cfg.chartType as string;
-    if (['pie', 'donut', 'nested-donut', 'polar-area', 'funnel'].includes(t)) return !!(data.series?.length || data.items?.length);
-    if (['scatter', 'bubble'].includes(t)) return !!(data.points?.length);
-    if (t === 'heatmap') return !!(data.matrix?.values?.length);
-    if (t === 'gauge') return data.value != null;
-    if (t === 'radar') return !!(data.indicators?.length && data.series?.length);
-    if (['treemap', 'sunburst'].includes(t)) return !!(data.tree?.length);
-    if (t === 'calendar-heatmap') return !!(data.calendar?.length);
-    if (t === 'boxplot') return !!(data.boxes?.length);
-    if (t === 'waterfall') return !!(data.steps?.length);
-    if (t === 'histogram') return !!(data.values?.length || data.bins?.length);
-    return !!(data.series?.length && (data.xAxis?.length || data.series.some((s: any) => s.data?.length)));
-  }
-
   _syncChart() {
     const cfg = this._cfg();
     const echarts = (window as any).echarts;
     if (!echarts) return;
     const el = document.getElementById(this.chartId);
     if (!el) return;
-    if (this.props.loading || !this._hasEnoughData(cfg, this.props.data)) {
+    if (this.props.loading || !hasEnoughData(cfg, this.props.data)) {
       const idle = echarts.getInstanceByDom(el);
       if (idle) { try { idle.dispose(); } catch (_) {} }
       this._chart = null;
@@ -263,7 +236,7 @@ component AnalyticsCard {
     }
     this._chart = instance;
     try {
-      const option = this._buildOption(cfg, this.props.data);
+      const option = buildChartOption(cfg, this.props.data);
       this._chart.setOption(option, true);
       this._chart.resize();
     } catch (err) {
@@ -271,294 +244,6 @@ component AnalyticsCard {
       try { this._chart.dispose(); } catch (_e) {}
       this._chart = null;
     }
-  }
-
-  // ---- option builder ----
-
-  _axis(type: string, text: string, grid: string) {
-    return {
-      type,
-      axisLabel: { color: text, fontSize: 10 },
-      axisLine: { lineStyle: { color: grid } },
-      splitLine: { lineStyle: { color: grid } },
-    };
-  }
-
-  _barLikeOption(cfg: Record<string, unknown>, data: any, opts: { horizontal?: boolean; stacked?: boolean; percent?: boolean }) {
-    const text = this._css('--color-text-secondary') || '#aaa';
-    const grid = this._css('--color-bg-border') || '#2a2a2a';
-    const palette = this._palette(cfg);
-    const categories: string[] = data?.xAxis || [];
-    let series = (data?.series || []).map((s: any) => ({ ...s }));
-
-    if (opts.percent && series.length) {
-      const sums: number[] = categories.map((_, i) => series.reduce((acc: number, s: any) => acc + (Number(s.data?.[i]) || 0), 0) || 1);
-      series = series.map((s: any) => ({ ...s, data: (s.data || []).map((v: number, i: number) => (Number(v) / sums[i]) * 100) }));
-    }
-
-    const catAxis = this._axis('category', text, grid);
-    (catAxis as any).data = categories;
-    const valAxis = this._axis('value', text, grid);
-
-    return {
-      tooltip: { trigger: 'axis' },
-      color: palette,
-      grid: { left: 40, right: 16, top: 16, bottom: 32, containLabel: true },
-      xAxis: opts.horizontal ? valAxis : catAxis,
-      yAxis: opts.horizontal ? catAxis : valAxis,
-      series: series.map((s: any) => ({
-        type: 'bar',
-        barMaxWidth: 40,
-        stack: (opts.stacked || opts.percent) ? 'total' : undefined,
-        itemStyle: { borderRadius: opts.stacked || opts.percent ? [0, 0, 0, 0] : [3, 3, 0, 0] },
-        ...s,
-      })),
-    };
-  }
-
-  _lineLikeOption(cfg: Record<string, unknown>, data: any, opts: { area?: boolean; stacked?: boolean; step?: boolean }) {
-    const text = this._css('--color-text-secondary') || '#aaa';
-    const grid = this._css('--color-bg-border') || '#2a2a2a';
-    const palette = this._palette(cfg);
-    const catAxis = this._axis('category', text, grid);
-    (catAxis as any).data = data?.xAxis || [];
-
-    return {
-      tooltip: { trigger: 'axis' },
-      color: palette,
-      grid: { left: 40, right: 16, top: 16, bottom: 32, containLabel: true },
-      xAxis: catAxis,
-      yAxis: this._axis('value', text, grid),
-      series: (data?.series || []).map((s: any) => ({
-        type: 'line',
-        smooth: !opts.step,
-        step: opts.step ? 'middle' : undefined,
-        stack: opts.stacked ? 'total' : undefined,
-        lineStyle: { width: 2 },
-        areaStyle: opts.area ? { opacity: opts.stacked ? 0.5 : 0.35 } : undefined,
-        ...s,
-      })),
-    };
-  }
-
-  _pieLikeOption(cfg: Record<string, unknown>, data: any, opts: { donut?: boolean; nested?: boolean }) {
-    const text = this._css('--color-text-secondary') || '#aaa';
-    const palette = this._palette(cfg);
-    const items = data?.series || [];
-
-    if (opts.nested) {
-      return {
-        tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-        color: palette,
-        series: [
-          { type: 'pie', radius: ['0%', '35%'], center: ['50%', '46%'], label: { show: false }, data: items[0]?.data || items[0] || [] },
-          { type: 'pie', radius: ['45%', '70%'], center: ['50%', '46%'], label: { show: false }, data: items[1]?.data || items[1] || [] },
-        ],
-      };
-    }
-
-    const radius = opts.donut ? ['42%', '68%'] : '62%';
-    return {
-      tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-      legend: { bottom: 4, textStyle: { color: text, fontSize: 10 } },
-      color: palette,
-      series: items.map((s: any) => ({
-        type: 'pie', radius, center: ['50%', '46%'],
-        label: { show: false },
-        emphasis: { label: { show: true, fontSize: 12 } }, ...s,
-      })),
-    };
-  }
-
-  _buildOption(cfg: Record<string, unknown>, data: any): Record<string, unknown> {
-    const type = cfg.chartType as string;
-    const text = this._css('--color-text-secondary') || '#aaa';
-    const grid = this._css('--color-bg-border') || '#2a2a2a';
-    const palette = this._palette(cfg);
-    let option: Record<string, unknown> = {};
-
-    if (type === 'bar' || type === 'grouped-bar') option = this._barLikeOption(cfg, data, {});
-    else if (type === 'horizontal-bar') option = this._barLikeOption(cfg, data, { horizontal: true });
-    else if (type === 'stacked-bar') option = this._barLikeOption(cfg, data, { stacked: true });
-    else if (type === 'percent-stacked-bar') option = this._barLikeOption(cfg, data, { stacked: true, percent: true });
-    else if (type === 'line') option = this._lineLikeOption(cfg, data, { area: true });
-    else if (type === 'multi-line') option = this._lineLikeOption(cfg, data, {});
-    else if (type === 'area') option = this._lineLikeOption(cfg, data, { area: true });
-    else if (type === 'stacked-area') option = this._lineLikeOption(cfg, data, { area: true, stacked: true });
-    else if (type === 'step-line') option = this._lineLikeOption(cfg, data, { step: true });
-    else if (type === 'pie') option = this._pieLikeOption(cfg, data, {});
-    else if (type === 'donut') option = this._pieLikeOption(cfg, data, { donut: true });
-    else if (type === 'nested-donut') option = this._pieLikeOption(cfg, data, { nested: true });
-
-    else if (type === 'histogram') {
-      const bins = data?.bins || [];
-      const catAxis = this._axis('category', text, grid);
-      (catAxis as any).data = bins.map((b: any) => b.range);
-      option = {
-        tooltip: { trigger: 'axis' },
-        color: palette,
-        grid: { left: 40, right: 16, top: 16, bottom: 32, containLabel: true },
-        xAxis: catAxis,
-        yAxis: this._axis('value', text, grid),
-        series: [{ type: 'bar', barMaxWidth: 40, data: bins.map((b: any) => b.count), itemStyle: { borderRadius: [3, 3, 0, 0] } }],
-      };
-    }
-
-    else if (type === 'boxplot') {
-      const boxes = data?.boxes || [];
-      const catAxis = this._axis('category', text, grid);
-      (catAxis as any).data = boxes.map((b: any) => b.name);
-      option = {
-        tooltip: { trigger: 'item' },
-        color: palette,
-        grid: { left: 40, right: 16, top: 16, bottom: 32, containLabel: true },
-        xAxis: catAxis,
-        yAxis: this._axis('value', text, grid),
-        series: [{ type: 'boxplot', data: boxes.map((b: any) => b.values) }],
-      };
-    }
-
-    else if (type === 'scatter' || type === 'bubble') {
-      option = {
-        tooltip: { trigger: 'item' },
-        color: palette,
-        grid: { left: 40, right: 16, top: 16, bottom: 32, containLabel: true },
-        xAxis: this._axis('value', text, grid),
-        yAxis: this._axis('value', text, grid),
-        series: [{
-          type: 'scatter',
-          data: data?.points || [],
-          symbolSize: type === 'bubble' ? (val: number[]) => Math.max(6, Math.sqrt(val[2] || 1) * 4) : 10,
-        }],
-      };
-    }
-
-    else if (type === 'heatmap') {
-      const matrix = data?.matrix || { xCategories: [], yCategories: [], values: [] };
-      const maxVal = Math.max(1, ...matrix.values.map((v: number[]) => v[2] || 0));
-      option = {
-        tooltip: { position: 'top' },
-        grid: { left: 60, right: 16, top: 16, bottom: 60, containLabel: true },
-        xAxis: { type: 'category', data: matrix.xCategories, splitArea: { show: true }, axisLabel: { color: text, fontSize: 10 } },
-        yAxis: { type: 'category', data: matrix.yCategories, splitArea: { show: true }, axisLabel: { color: text, fontSize: 10 } },
-        visualMap: { min: 0, max: maxVal, calculable: true, orient: 'horizontal', left: 'center', bottom: 0, textStyle: { color: text } },
-        series: [{ type: 'heatmap', data: matrix.values, label: { show: !!cfg.showLabels } }],
-      };
-    }
-
-    else if (type === 'gauge') {
-      option = {
-        series: [{
-          type: 'gauge',
-          max: data?.max ?? 100,
-          data: [{ value: data?.value ?? 0, name: (cfg.customTitle as string) || '' }],
-          detail: { color: text },
-          axisLabel: { color: text, fontSize: 10 },
-        }],
-      };
-    }
-
-    else if (type === 'radar') {
-      option = {
-        tooltip: {},
-        color: palette,
-        radar: { indicator: data?.indicators || [], axisName: { color: text, fontSize: 10 } },
-        series: [{ type: 'radar', data: (data?.series || []).map((s: any) => ({ name: s.name, value: s.values })) }],
-      };
-    }
-
-    else if (type === 'funnel') {
-      option = {
-        tooltip: { trigger: 'item', formatter: '{b}: {c}' },
-        color: palette,
-        series: [{ type: 'funnel', left: 20, right: 20, label: { show: !!cfg.showLabels }, data: data?.items || [] }],
-      };
-    }
-
-    else if (type === 'treemap' || type === 'sunburst') {
-      option = {
-        tooltip: { trigger: 'item' },
-        color: palette,
-        series: [{ type, data: data?.tree || [], label: { show: !!cfg.showLabels } }],
-      };
-    }
-
-    else if (type === 'calendar-heatmap') {
-      const cal = data?.calendar || [];
-      const maxVal = Math.max(1, ...cal.map((d: any) => d.value || 0));
-      option = {
-        tooltip: {},
-        calendar: {
-          range: data?.range || [],
-          cellSize: ['auto', 14],
-          itemStyle: { borderWidth: 2, borderColor: this._css('--color-bg-surface') || '#111' },
-          dayLabel: { color: text, fontSize: 10 },
-          monthLabel: { color: text, fontSize: 10 },
-          yearLabel: { show: false },
-        },
-        visualMap: { min: 0, max: maxVal, calculable: true, orient: 'horizontal', left: 'center', bottom: 0, textStyle: { color: text } },
-        series: [{ type: 'heatmap', coordinateSystem: 'calendar', data: cal.map((d: any) => [d.date, d.value]) }],
-      };
-    }
-
-    else if (type === 'polar-area' || type === 'radial-bar') {
-      const categories: string[] = data?.xAxis || [];
-      const values: number[] = data?.series?.[0]?.data || [];
-      option = {
-        tooltip: {},
-        color: palette,
-        polar: { radius: type === 'radial-bar' ? ['20%', '80%'] : ['10%', '75%'] },
-        angleAxis: { max: Math.max(1, ...values), axisLabel: { color: text, fontSize: 10 } },
-        radiusAxis: { type: 'category', data: categories, axisLabel: { color: text, fontSize: 10 } },
-        series: [{
-          type: 'bar',
-          coordinateSystem: 'polar',
-          data: values,
-          roundCap: type === 'radial-bar',
-        }],
-      };
-    }
-
-    else if (type === 'waterfall') {
-      const steps = data?.steps || [];
-      let cum = 0;
-      const bases: number[] = [];
-      const deltas: number[] = [];
-      steps.forEach((s: any) => {
-        const v = Number(s.value) || 0;
-        bases.push(v >= 0 ? cum : cum + v);
-        deltas.push(Math.abs(v));
-        cum += v;
-      });
-      const catAxis = this._axis('category', text, grid);
-      (catAxis as any).data = steps.map((s: any) => s.name);
-      option = {
-        tooltip: { trigger: 'axis' },
-        color: palette,
-        grid: { left: 40, right: 16, top: 16, bottom: 32, containLabel: true },
-        xAxis: catAxis,
-        yAxis: this._axis('value', text, grid),
-        series: [
-          { name: 'Base', type: 'bar', stack: 'wf', itemStyle: { color: 'transparent' }, data: bases, silent: true, tooltip: { show: false } },
-          { name: 'Value', type: 'bar', stack: 'wf', data: deltas, label: { show: !!cfg.showLabels, position: 'top' } },
-        ],
-      };
-    }
-
-    // Global display-option overlay
-    if (!cfg.showTooltips) option.tooltip = { show: false };
-    if (option.legend) (option.legend as any).show = !!cfg.showLegend;
-    else if (cfg.showLegend && Array.isArray(option.series) && (option.series as any[]).length > 1) {
-      option.legend = { show: true, bottom: 4, textStyle: { color: text, fontSize: 10 } };
-    }
-    if (Array.isArray(option.series)) {
-      option.series = (option.series as any[]).map((s: any) => ({
-        ...s,
-        label: s.label ? { ...s.label, show: !!cfg.showLabels } : (cfg.showLabels ? { show: true } : s.label),
-      }));
-    }
-    option.animation = !!cfg.animations;
-    return option;
   }
 
   // ---- export ----
@@ -578,7 +263,7 @@ component AnalyticsCard {
   _exportImage(fmt: 'png' | 'svg') {
     if (!this._chart) return;
     try {
-      const url = this._chart.getDataURL({ type: fmt, backgroundColor: this._css('--color-bg-surface') || '#fff' });
+      const url = this._chart.getDataURL({ type: fmt, backgroundColor: cssVar('--color-bg-surface') || '#fff' });
       const a = document.createElement('a');
       a.href = url;
       a.download = `${(this._cfg().customTitle as string) || this.props.title || 'chart'}.${fmt}`;
@@ -609,20 +294,6 @@ component AnalyticsCard {
     this._download(`${this.props.title || 'data'}.csv`, lines.join('\n'), 'text/csv');
   }
 
-  // ---- a11y summary ----
-
-  _summaryText(cfg: Record<string, unknown>, data: any): string {
-    const type = cfg.chartType as string;
-    if (!data) return `${type} chart, no data`;
-    if (type === 'gauge') return `Gauge showing value ${data.value ?? '—'} of ${data.max ?? 100}`;
-    const flatValues: number[] = (data.series || []).flatMap((s: any) => (s.data || []).filter((v: unknown) => typeof v === 'number'));
-    if (!flatValues.length) return `${type} chart`;
-    const min = Math.min(...flatValues);
-    const max = Math.max(...flatValues);
-    const n = (data.xAxis || data.series || []).length;
-    return `${type} chart showing ${n} categories, values ranging from ${min} to ${max}`;
-  }
-
   // ---- render ----
 
   _closeMenus() { this._menuOpen = false; this._openSubmenu = ''; }
@@ -631,7 +302,7 @@ component AnalyticsCard {
     const cfg = this._cfg();
     const height = this.props.height || '320px';
     const loading = !!this.props.loading;
-    const hasData = this._hasEnoughData(cfg, this.props.data);
+    const hasData = hasEnoughData(cfg, this.props.data);
     const availableTypes = (this.props.availableTypes && this.props.availableTypes.length)
       ? CHART_TYPES.filter((t) => (this.props.availableTypes as string[]).includes(t.id))
       : CHART_TYPES;
@@ -656,7 +327,7 @@ component AnalyticsCard {
           aria-label={displayTitle}
           style={fullscreenStyle}
         >
-          <span class="alp-sr-only">{this._summaryText(cfg, this.props.data)}</span>
+          <span class="alp-sr-only">{summaryText(cfg, this.props.data)}</span>
 
           <div class="alp-analytics-card-header">
             <div style="min-width:0;flex:1;">

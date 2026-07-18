@@ -1,0 +1,156 @@
+import { SwissComponent } from '@swissjs/core';
+
+/**
+ * OnboardingProgressBar — the global "Getting Started" surface (registry/
+ * fable/onboarding/DESIGN.md), lives in the shell's top nav between the
+ * left (back/forward) and right (search/theme/account) button groups.
+ *
+ * Reads the SAME /api/v1/onboarding/progress endpoint the embedded
+ * contextual prompts do (core.manifest_registry.get_onboarding_registry(),
+ * federated from every module's OnboardingSurface) -- percent, step list and
+ * completion state can never disagree between the two surfaces because
+ * there is only one source of them.
+ *
+ * "Smart with respect to the vertical running": this component has no
+ * hardcoded module list or vertical branching at all -- the backend only
+ * ever returns steps from modules actually federated into the tenant's own
+ * deployment, and each step's `required_atom` further scopes it to users
+ * who actually hold that atom (tier-gated features naturally disappear for
+ * a tenant without the atom). The bar simply renders whatever the
+ * federation + auth stack decided is real for this tenant right now.
+ *
+ * Renders nothing (not even a collapsed sliver) once there are no visible
+ * steps at all, once every step is done, or once dismissed. Dismissal is
+ * session-scoped (sessionStorage) per the "temporary" framing in the
+ * design -- it comes back on the next login, it does not permanently hide
+ * onboarding guidance from someone who still needs it.
+ */
+component OnboardingProgressBar {
+  props = {};
+
+  state { let status: string = 'loading'; }
+  state { let steps: Record<string, unknown>[] = []; }
+  state { let total: number = 0; }
+  state { let completed: number = 0; }
+  state { let percent: number = 0; }
+  state { let dismissed: boolean = false; }
+  state { let panelOpen: boolean = false; }
+
+  async mounted() {
+    this.dismissed = sessionStorage.getItem('alpine-onboarding-dismissed') === '1';
+    if (this.dismissed) { this.status = 'success'; this.scheduleUpdate?.(); return; }
+    await this._load();
+    document.addEventListener('click', (e: MouseEvent) => {
+      if (this.panelOpen && !(e.target as HTMLElement).closest('.alp-onboard-bar-wrapper')) {
+        this.panelOpen = false;
+        this.scheduleUpdate?.();
+      }
+    });
+  }
+
+  async _load() {
+    this.status = 'loading';
+    try {
+      const res = await fetch('/api/v1/onboarding/progress', { credentials: 'include' });
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      this.steps = data.steps || [];
+      this.total = data.total || 0;
+      this.completed = data.completed || 0;
+      this.percent = data.percent ?? 0;
+      this.status = 'success';
+    } catch (_) {
+      this.status = 'error';
+    }
+    this._forceCommit();
+  }
+
+  // Same live-confirmed workaround as ReportsHub._forceCommit (registry/
+  // fable/loading-state/) -- an awaited-fetch loading->content transition
+  // can need more than one scheduleUpdate() to fully commit.
+  _forceCommit(attempt: number = 0) {
+    this.scheduleUpdate?.();
+    if (attempt >= 5) return;
+    requestAnimationFrame(() => this._forceCommit(attempt + 1));
+  }
+
+  _togglePanel() {
+    this.panelOpen = !this.panelOpen;
+    this.scheduleUpdate?.();
+  }
+
+  _dismiss(e: Event) {
+    e.stopPropagation();
+    sessionStorage.setItem('alpine-onboarding-dismissed', '1');
+    this.dismissed = true;
+    this.panelOpen = false;
+    this.scheduleUpdate?.();
+  }
+
+  _goToStep(step: Record<string, unknown>) {
+    this.panelOpen = false;
+    this.scheduleUpdate?.();
+    const location = step.location as string;
+    if (!location) return;
+    const nav = (window as unknown as { __skltn?: { navigate?: (path: string) => void } }).__skltn;
+    if (nav?.navigate) nav.navigate(location);
+    else window.location.href = location;
+  }
+
+  render() {
+    // Always render the SAME wrapper element and toggle visibility via CSS
+    // rather than conditionally returning a structurally different subtree
+    // (e.g. an unrelated hidden placeholder div) -- live-confirmed
+    // (registry/fable/loading-state/) that this exact kind of root-level
+    // vnode-shape swap can land the reconciler in a half-committed hybrid
+    // state (old attributes mixed with new children) even with the
+    // _forceCommit retry workaround. Keeping the root element identical
+    // across every render sidesteps that whole class of transition instead
+    // of retrying through it.
+    const hidden = this.status !== 'success' || this.dismissed || this.total === 0 || this.completed >= this.total;
+    const pending = this.steps.filter((s) => !s.complete);
+
+    return (
+      <div class="alp-onboard-bar-wrapper" style={hidden ? 'display:none;' : ''}>
+        <button type="button" class="alp-onboard-bar" onclick={() => this._togglePanel()}>
+          <span class="alp-onboard-bar-track">
+            <span class="alp-onboard-bar-fill" style={`width:${this.percent}%`}></span>
+          </span>
+          <span class="alp-onboard-bar-label">Getting Started · {this.percent}%</span>
+        </button>
+        <button
+          type="button"
+          class="alp-onboard-bar-dismiss"
+          onclick={(e: Event) => this._dismiss(e)}
+          aria-label="Dismiss onboarding progress"
+          title="Dismiss for this session"
+        >×</button>
+
+        {!hidden && this.panelOpen && (
+          <div class="alp-onboard-panel">
+            <div class="alp-onboard-panel-header">
+              <span class="alp-onboard-panel-title">Getting Started</span>
+              <span class="alp-onboard-panel-count">{this.completed} / {this.total} complete</span>
+            </div>
+            <div class="alp-onboard-panel-list">
+              {pending.map((s) => (
+                <button
+                  type="button"
+                  key={s.step_id as string}
+                  class="alp-onboard-panel-item"
+                  onclick={() => this._goToStep(s)}
+                >
+                  <span class={`alp-onboard-panel-dot alp-onboard-panel-dot--${s.type}`}></span>
+                  <span class="alp-onboard-panel-item-text">
+                    <span class="alp-onboard-panel-item-title">{s.title as string}</span>
+                    <span class="alp-onboard-panel-item-desc">{s.description as string}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+}

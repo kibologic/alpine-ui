@@ -1,0 +1,52 @@
+import { SwissComponent } from '@swissjs/core';
+import { ICON_DATA } from './icon-data.ts';
+
+/**
+ * Primitive Icon — the platform's one consistent icon system.
+ *
+ * Backed by Lucide (lucide-static, ISC license), inlined at build time so
+ * there is no runtime fetch and no icon-font FOUC. Renders 24x24 stroke-based
+ * SVGs that inherit color via currentColor, so an icon always matches
+ * surrounding text/token color without extra CSS.
+ *
+ * This exists to replace ad hoc emoji glyphs (lock, check, x, warning,
+ * clipboard, etc.) used across the platform -- see icon-data.ts for how to
+ * add a new name. Migration is incremental: swap an emoji for this component,
+ * passing name plus an optional size, as each module gets touched -- not a
+ * one-time sweep.
+ */
+component Icon {
+  props = {
+    name: String,
+    size: Number,
+    class: String,
+    strokeWidth: Number,
+  };
+
+  render() {
+    const { name, class: className } = this.props;
+    // AR-064: coerce to Number before string-interpolating into the raw
+    // innerHTML below -- props declared `Number` aren't actually validated
+    // at runtime, so a non-numeric value (e.g. passed by mistake as a
+    // string) would otherwise land unescaped inside the SVG markup.
+    // NaN || default preserves the original missing-value fallback exactly.
+    const size = Number(this.props.size) || 16;
+    const strokeWidth = Number(this.props.strokeWidth) || 2;
+    const inner = ICON_DATA[name as string];
+
+    if (!inner) {
+      if (typeof console !== 'undefined') {
+        console.warn(`[Icon] unknown icon name: "${name}"`);
+      }
+      // AR-064: `return null` triggers UIX's documented placeholder-swap
+      // bug (breaks sibling DOM commits) -- an empty span is harmless.
+      return <span class="aui-icon aui-icon--missing" aria-hidden="true"></span>;
+    }
+
+    const svgHtml = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+    const wrapperClass = `aui-icon ${className || ''}`;
+    const wrapperStyle = `width:${size}px;height:${size}px;`;
+
+    return <span class={wrapperClass} style={wrapperStyle} aria-hidden="true" innerHTML={svgHtml}></span>;
+  }
+}

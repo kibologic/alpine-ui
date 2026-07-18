@@ -1,0 +1,522 @@
+import { SwissComponent } from '@swissjs/core';
+import { CalendarGrid } from './date-picker/CalendarGrid.uix';
+import { TimeSelect } from './date-picker/TimeSelect.uix';
+import { Icon } from '../primitives/Icon.uix';
+import {
+  dateKey, isSameDay, isDateAllowed, parseTypedDate, formatValue, getShortcuts,
+  getLocale, localizedMonths, addMonths, addYears, addDays, startOfDay,
+  startOfMonth, quarterOf, DateConstraints, Shortcut,
+} from './date-picker/date-utils.ui';
+
+/*
+  Alpine UI DatePicker — the platform's single date/time selection primitive
+  (registry/fable/ui/DATEPICKER-DESIGN.md; see also erp-core's raw
+  `<input type="date">` call sites this is meant to replace over time --
+  ReportsHub.uix's own param filters are the first migration, done in this
+  same change).
+
+  Same prop contract as TextField/SelectField (value/onchange/error/disabled/
+  placeholder) so it drops into an existing <FormGroup renderField={...}>
+  unchanged -- see form/TextField.uix for the sibling this matches.
+
+  Modes: date | datetime | time | range | datetime_range | month | quarter | year
+  Not in V1 (documented, not silently missing): week picker, true multi-date
+  / non-continuous selection, drag-to-select range, holiday/booking data
+  providers, NL parsing, calendar service integrations. The `dayDecorator`
+  prop is the extension point those would hook into later without a
+  redesign -- it already exists and is wired through to CalendarGrid today.
+
+  Value shape (always plain ISO strings, never Date objects, so it's safe to
+  store/serialize/pass through an HTTP boundary untouched):
+    date            "YYYY-MM-DD"
+    datetime        "YYYY-MM-DDTHH:mm[:ss]"
+    time            "HH:mm[:ss]"
+    month           "YYYY-MM"
+    quarter         "YYYY-QN"
+    year            "YYYY"
+    range/datetime_range   ["<start>", "<end>"] using the date/datetime shape above
+*/
+component DatePicker {
+  props = {
+    mode:             'date',   // date|datetime|time|range|datetime_range|month|quarter|year
+    value:            null,     // string | [string,string] | null
+    placeholder:      '',
+    disabled:         false,
+    readOnly:         false,
+    required:         false,
+    error:            '',
+    onchange:         null,     // (value) => void -- matches TextField's lowercase `onchange`
+
+    minDate:          null,     // string | Date
+    maxDate:          null,
+    disabledDates:    [],       // dateKey() strings
+    disabledWeekdays: [],       // 0=Sun..6=Sat
+    futureOnly:       false,
+    pastOnly:         false,
+    businessDaysOnly: false,
+    isDateDisabled:   null,     // (d: Date) => boolean
+
+    showShortcuts:    null,     // null = auto (on for range modes)
+    showWeekNumbers:  false,
+    use12h:           false,
+    showSeconds:      false,
+    minuteStep:       5,
+    timezone:         null,    // display-only, see date-utils.ui's timezone note
+    dayDecorator:     null,    // (d: Date) => {className?, content?, title?} | null -- extension hook
+  };
+
+  state { let open: boolean = false; }
+  state { let viewAnchor: Date = new Date(); }
+  state { let pickerLevel: string = 'days'; }   // 'days' | 'months' | 'years' -- the popup's own drill-down
+  state { let selected: Date | null = null; }
+  state { let rangeStart: Date | null = null; }
+  state { let rangeEnd: Date | null = null; }
+  state { let hoverDate: Date | null = null; }
+  state { let activeRangeSide: string = 'start'; }
+  state { let time: Record<string, number> = { hours: 0, minutes: 0, seconds: 0 }; }
+  state { let inputText: string = ''; }
+  state { let inputTextEnd: string = ''; }  // range mode's "To" field
+  state { let focusedKey: string = ''; }
+
+  // Unique per instance -- multiple DatePickers are routinely mounted as
+  // siblings (e.g. a report's From/To params), so a hardcoded id/class would
+  // make the outside-click check below (and aria-controls) ambiguous about
+  // which instance a click or popup actually belongs to. Same pattern as
+  // Modal.uix's _titleId.
+  _uid: string = `alp-dp-${Math.random().toString(36).slice(2, 10)}`;
+  _locale: string = getLocale();
+
+  mounted() {
+    this._syncFromValue();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('mousedown', this._onDocumentMouseDown);
+    }
+  }
+
+  unmounted() {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('mousedown', this._onDocumentMouseDown);
+    }
+  }
+
+  // Bound as a class property (not a method) so add/removeEventListener see
+  // the same function reference across mounted()/unmounted().
+  //
+  // Replaces an earlier onblur-capture-based close: that only fires when
+  // focus actually moves to another element, but clicking a non-focusable
+  // target (a plain div, blank page background -- the common case) never
+  // shifts focus away from the input at all, so the popup just sat open
+  // forever. A document-level mousedown + closest() check (matching
+  // DataTable.uix's own outside-click pattern) doesn't depend on focus
+  // semantics at all -- it fires on every click anywhere, scoped to this
+  // exact instance via the unique _uid id so sibling DatePickers (e.g. a
+  // report's From/To fields) never interfere with each other.
+  _onDocumentMouseDown = (e: MouseEvent) => {
+    if (!this.open) return;
+    const target = e.target as HTMLElement;
+    if (!target.closest(`#${this._uid}`)) this._close();
+  };
+
+  _isRange(): boolean { return this.props.mode === 'range' || this.props.mode === 'datetime_range'; }
+  _hasTime(): boolean { return this.props.mode === 'datetime' || this.props.mode === 'datetime_range'; }
+  _hasDateGrid(): boolean { return ['date', 'datetime', 'range', 'datetime_range'].includes(this.props.mode); }
+
+  _constraints(): DateConstraints {
+    return {
+      minDate: this.props.minDate ? new Date(this.props.minDate) : null,
+      maxDate: this.props.maxDate ? new Date(this.props.maxDate) : null,
+      disabledDates: this.props.disabledDates || [],
+      disabledWeekdays: this.props.disabledWeekdays || [],
+      futureOnly: !!this.props.futureOnly,
+      pastOnly: !!this.props.pastOnly,
+      businessDaysOnly: !!this.props.businessDaysOnly,
+      isDateDisabled: this.props.isDateDisabled || undefined,
+    };
+  }
+
+  _syncFromValue() {
+    const mode = this.props.mode;
+    const v = this.props.value;
+    if (this._isRange()) {
+      const [a, b] = Array.isArray(v) ? v : [null, null];
+      this.rangeStart = a ? new Date(a) : null;
+      this.rangeEnd = b ? new Date(b) : null;
+      this.viewAnchor = this.rangeStart || new Date();
+      this.inputText = a ? formatValue(new Date(a), mode === 'datetime_range' ? 'datetime' : 'date', this._locale) : '';
+      this.inputTextEnd = b ? formatValue(new Date(b), mode === 'datetime_range' ? 'datetime' : 'date', this._locale) : '';
+      return;
+    }
+    if (!v) { this.selected = null; this.inputText = ''; return; }
+    if (mode === 'time') {
+      const [h, m, s] = String(v).split(':').map(Number);
+      this.time = { hours: h || 0, minutes: m || 0, seconds: s || 0 };
+      this.inputText = formatValue(new Date(2000, 0, 1, h || 0, m || 0, s || 0), 'time', this._locale, { showSeconds: this.props.showSeconds });
+      return;
+    }
+    const d = new Date(v as string);
+    if (isNaN(d.getTime())) return;
+    this.selected = d;
+    this.viewAnchor = d;
+    if (this._hasTime()) this.time = { hours: d.getHours(), minutes: d.getMinutes(), seconds: d.getSeconds() };
+    this.inputText = formatValue(d, mode, this._locale, { hour12: this.props.use12h, showSeconds: this.props.showSeconds });
+  }
+
+  _open() {
+    if (this.props.disabled || this.props.readOnly) return;
+    this.open = true;
+    this.pickerLevel = ['month', 'quarter', 'year'].includes(this.props.mode) ? 'years' : 'days';
+    this.focusedKey = dateKey(this.selected || this.rangeStart || new Date());
+    this.scheduleUpdate?.();
+  }
+
+  _close() {
+    this.open = false;
+    this.hoverDate = null;
+    this.scheduleUpdate?.();
+  }
+
+  _emit(value: unknown) {
+    this.props.onchange?.(value);
+  }
+
+  _isoDate(d: Date): string { return dateKey(d); }
+  _isoDateTime(d: Date): string {
+    const t = this._hasTime() ? this.time : { hours: d.getHours(), minutes: d.getMinutes(), seconds: d.getSeconds() };
+    const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate(), t.hours, t.minutes, t.seconds);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}${this.props.showSeconds ? ':' + pad(dt.getSeconds()) : ''}`;
+  }
+
+  _pickDay(d: Date) {
+    const mode = this.props.mode;
+    if (this._isRange()) {
+      if (!this.rangeStart || (this.rangeStart && this.rangeEnd)) {
+        this.rangeStart = d; this.rangeEnd = null; this.activeRangeSide = 'end';
+      } else {
+        if (dateKey(d) < dateKey(this.rangeStart)) { this.rangeEnd = this.rangeStart; this.rangeStart = d; }
+        else { this.rangeEnd = d; }
+        this.activeRangeSide = 'start';
+        const fmt = mode === 'datetime_range' ? 'datetime' : 'date';
+        this.inputText = formatValue(this.rangeStart, fmt, this._locale);
+        this.inputTextEnd = formatValue(this.rangeEnd, fmt, this._locale);
+        this._emit([
+          mode === 'datetime_range' ? this._isoDateTime(this.rangeStart) : this._isoDate(this.rangeStart),
+          mode === 'datetime_range' ? this._isoDateTime(this.rangeEnd) : this._isoDate(this.rangeEnd),
+        ]);
+        this._close();
+        return;
+      }
+      this.scheduleUpdate?.();
+      return;
+    }
+
+    this.selected = d;
+    this.inputText = formatValue(d, mode, this._locale, { hour12: this.props.use12h, showSeconds: this.props.showSeconds });
+    this._emit(mode === 'datetime' ? this._isoDateTime(d) : this._isoDate(d));
+    if (!this._hasTime()) this._close();
+    else this.scheduleUpdate?.();
+  }
+
+  _applyShortcut(s: Shortcut) {
+    const mode = this.props.mode;
+    if (this._isRange()) {
+      this.rangeStart = s.range[0]; this.rangeEnd = s.range[1]; this.viewAnchor = s.range[0];
+      const fmt = mode === 'datetime_range' ? 'datetime' : 'date';
+      this.inputText = formatValue(this.rangeStart, fmt, this._locale);
+      this.inputTextEnd = formatValue(this.rangeEnd, fmt, this._locale);
+      this._emit([this._isoDate(this.rangeStart), this._isoDate(this.rangeEnd)]);
+    } else {
+      this._pickDay(s.range[0]);
+      return;
+    }
+    this._close();
+  }
+
+  _setTime(t: Record<string, number>) {
+    this.time = t;
+    if (this.selected) this._emit(this._isoDateTime(this.selected));
+    this.scheduleUpdate?.();
+  }
+
+  _pickMonth(m: number) {
+    const mode = this.props.mode;
+    const d = new Date(this.viewAnchor.getFullYear(), m, 1);
+    if (mode === 'month') {
+      this.selected = d; this.inputText = formatValue(d, 'month', this._locale);
+      this._emit(`${d.getFullYear()}-${String(m + 1).padStart(2, '0')}`);
+      this._close();
+    } else {
+      this.viewAnchor = d; this.pickerLevel = 'days';
+      this.scheduleUpdate?.();
+    }
+  }
+
+  _pickQuarter(q: number) {
+    const d = new Date(this.viewAnchor.getFullYear(), (q - 1) * 3, 1);
+    this.selected = d; this.inputText = formatValue(d, 'quarter', this._locale);
+    this._emit(`${d.getFullYear()}-Q${q}`);
+    this._close();
+  }
+
+  _pickYear(y: number) {
+    if (this.props.mode === 'year') {
+      const d = new Date(y, 0, 1);
+      this.selected = d; this.inputText = String(y);
+      this._emit(String(y));
+      this._close();
+    } else {
+      this.viewAnchor = new Date(y, this.viewAnchor.getMonth(), 1);
+      this.pickerLevel = this.props.mode === 'quarter' ? 'quarters' : 'months';
+      this.scheduleUpdate?.();
+    }
+  }
+
+  _commitTyped(text: string, isEnd: boolean = false) {
+    const d = parseTypedDate(text);
+    if (!d || !isDateAllowed(d, this._constraints())) return;
+    if (this._isRange()) {
+      if (isEnd) this.rangeEnd = d; else this.rangeStart = d;
+      if (this.rangeStart && this.rangeEnd) {
+        this._emit([this._isoDate(this.rangeStart), this._isoDate(this.rangeEnd)]);
+      }
+    } else {
+      this._pickDay(d);
+    }
+  }
+
+  _handleKey(e: KeyboardEvent) {
+    if (e.key === 'Escape') { this._close(); return; }
+    if (!this._hasDateGrid() || this.pickerLevel !== 'days') return;
+    const cur = this.focusedKey ? new Date(this.focusedKey) : new Date();
+    let next: Date | null = null;
+    if (e.key === 'ArrowRight') next = addDays(cur, 1);
+    else if (e.key === 'ArrowLeft') next = addDays(cur, -1);
+    else if (e.key === 'ArrowDown') next = addDays(cur, 7);
+    else if (e.key === 'ArrowUp') next = addDays(cur, -7);
+    else if (e.key === 'PageUp') next = e.shiftKey ? addYears(cur, -1) : addMonths(cur, -1);
+    else if (e.key === 'PageDown') next = e.shiftKey ? addYears(cur, 1) : addMonths(cur, 1);
+    else if (e.key === 'Home') next = addDays(cur, -cur.getDay());
+    else if (e.key === 'End') next = addDays(cur, 6 - cur.getDay());
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this._pickDay(cur); return; }
+    if (next) {
+      e.preventDefault();
+      this.focusedKey = dateKey(next);
+      this.viewAnchor = next;
+      this.scheduleUpdate?.();
+    }
+  }
+
+  _renderCalendarHeader() {
+    const anchor = this.viewAnchor;
+    const months = localizedMonths(this._locale);
+    return (
+      <div class="alp-dp-header">
+        <button type="button" class="alp-dp-nav-btn" aria-label="Previous" onclick={() => { this.viewAnchor = addMonths(anchor, -1); this.scheduleUpdate?.(); }}>‹</button>
+        <button type="button" class="alp-dp-header-label" onclick={() => { this.pickerLevel = 'months'; this.scheduleUpdate?.(); }}>
+          {months[anchor.getMonth()]} {anchor.getFullYear()}
+        </button>
+        <button type="button" class="alp-dp-nav-btn" aria-label="Next" onclick={() => { this.viewAnchor = addMonths(anchor, 1); this.scheduleUpdate?.(); }}>›</button>
+      </div>
+    );
+  }
+
+  _renderMonthsLevel() {
+    const months = localizedMonths(this._locale);
+    return (
+      <div>
+        <div class="alp-dp-header">
+          <button type="button" class="alp-dp-nav-btn" onclick={() => { this.viewAnchor = addYears(this.viewAnchor, -1); this.scheduleUpdate?.(); }}>‹</button>
+          <span class="alp-dp-header-label">{this.viewAnchor.getFullYear()}</span>
+          <button type="button" class="alp-dp-nav-btn" onclick={() => { this.viewAnchor = addYears(this.viewAnchor, 1); this.scheduleUpdate?.(); }}>›</button>
+        </div>
+        <div class="alp-dp-mgrid">
+          {months.map((m, i) => (
+            <button key={m} type="button" class={`alp-dp-mgrid-cell${i === this.viewAnchor.getMonth() ? ' alp-dp-mgrid-cell--active' : ''}`} onclick={() => this._pickMonth(i)}>
+              {m.slice(0, 3)}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  _renderQuartersLevel() {
+    const q = quarterOf(this.viewAnchor);
+    return (
+      <div class="alp-dp-mgrid alp-dp-mgrid--4">
+        {[1, 2, 3, 4].map((n) => (
+          <button key={n} type="button" class={`alp-dp-mgrid-cell${n === q ? ' alp-dp-mgrid-cell--active' : ''}`} onclick={() => this._pickQuarter(n)}>Q{n}</button>
+        ))}
+      </div>
+    );
+  }
+
+  _renderYearsLevel() {
+    const base = Math.floor(this.viewAnchor.getFullYear() / 12) * 12;
+    const years = Array.from({ length: 12 }, (_, i) => base + i);
+    return (
+      <div>
+        <div class="alp-dp-header">
+          <button type="button" class="alp-dp-nav-btn" onclick={() => { this.viewAnchor = new Date(this.viewAnchor.getFullYear() - 12, this.viewAnchor.getMonth(), 1); this.scheduleUpdate?.(); }}>‹</button>
+          <span class="alp-dp-header-label">{years[0]}–{years[11]}</span>
+          <button type="button" class="alp-dp-nav-btn" onclick={() => { this.viewAnchor = new Date(this.viewAnchor.getFullYear() + 12, this.viewAnchor.getMonth(), 1); this.scheduleUpdate?.(); }}>›</button>
+        </div>
+        <div class="alp-dp-mgrid">
+          {years.map((y) => (
+            <button key={y} type="button" class={`alp-dp-mgrid-cell${y === this.viewAnchor.getFullYear() ? ' alp-dp-mgrid-cell--active' : ''}`} onclick={() => this._pickYear(y)}>{y}</button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  _renderShortcuts() {
+    return (
+      <div class="alp-dp-shortcuts" role="list">
+        {getShortcuts().map((s) => (
+          <button key={s.label} type="button" class="alp-dp-shortcut" onclick={() => this._applyShortcut(s)}>{s.label}</button>
+        ))}
+      </div>
+    );
+  }
+
+  _renderPopup() {
+    const showShortcuts = this.props.showShortcuts ?? this._isRange();
+    const level = this.props.mode === 'month' ? (this.pickerLevel === 'years' ? 'years' : 'months')
+      : this.props.mode === 'quarter' ? (this.pickerLevel === 'years' ? 'years' : 'quarters')
+      : this.props.mode === 'year' ? 'years'
+      : this.pickerLevel;
+
+    return (
+      <div id={`${this._uid}-popup`} class="alp-dp-popup" role="dialog" aria-label={`${this.props.mode === 'time' ? 'Time' : 'Date'} picker`} aria-modal="false">
+        {showShortcuts && this._renderShortcuts()}
+        <div class="alp-dp-popup-body">
+          {level === 'days' && this._renderCalendarHeader()}
+          {level === 'years' && this._renderYearsLevel()}
+          {level === 'months' && this._renderMonthsLevel()}
+          {level === 'quarters' && (
+            <>
+              <div class="alp-dp-header">
+                <button type="button" class="alp-dp-nav-btn" onclick={() => { this.viewAnchor = addYears(this.viewAnchor, -1); this.scheduleUpdate?.(); }}>‹</button>
+                <span class="alp-dp-header-label">{this.viewAnchor.getFullYear()}</span>
+                <button type="button" class="alp-dp-nav-btn" onclick={() => { this.viewAnchor = addYears(this.viewAnchor, 1); this.scheduleUpdate?.(); }}>›</button>
+              </div>
+              {this._renderQuartersLevel()}
+            </>
+          )}
+          {level === 'days' && (
+            <CalendarGrid
+              anchor={this.viewAnchor}
+              locale={this._locale}
+              selected={this.selected}
+              rangeStart={this.rangeStart}
+              rangeEnd={this.rangeEnd}
+              hoverDate={this.hoverDate}
+              constraints={this._constraints()}
+              showWeekNumbers={this.props.showWeekNumbers}
+              dayDecorator={this.props.dayDecorator}
+              focusedKey={this.focusedKey}
+              onDayClick={(d: Date) => this._pickDay(d)}
+              onDayHover={(d: Date) => { if (this.rangeStart && !this.rangeEnd) { this.hoverDate = d; this.scheduleUpdate?.(); } }}
+            />
+          )}
+          {this._hasTime() && level === 'days' && (
+            <TimeSelect
+              hours={this.time.hours}
+              minutes={this.time.minutes}
+              seconds={this.time.seconds}
+              showSeconds={this.props.showSeconds}
+              use12h={this.props.use12h}
+              minuteStep={this.props.minuteStep}
+              onChange={(t: Record<string, number>) => this._setTime(t)}
+            />
+          )}
+          {this.props.mode === 'time' && (
+            <TimeSelect
+              hours={this.time.hours}
+              minutes={this.time.minutes}
+              seconds={this.time.seconds}
+              showSeconds={this.props.showSeconds}
+              use12h={this.props.use12h}
+              minuteStep={this.props.minuteStep}
+              onChange={(t: Record<string, number>) => {
+                this.time = t;
+                const pad = (n: number) => String(n).padStart(2, '0');
+                this.inputText = formatValue(new Date(2000, 0, 1, t.hours, t.minutes, t.seconds), 'time', this._locale, { hour12: this.props.use12h, showSeconds: this.props.showSeconds });
+                this._emit(`${pad(t.hours)}:${pad(t.minutes)}${this.props.showSeconds ? ':' + pad(t.seconds) : ''}`);
+              }}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  render() {
+    const hasError = !!this.props.error;
+    const iconName = this.props.mode === 'time' ? 'clock' : 'calendar';
+
+    const popupId = `${this._uid}-popup`;
+
+    return (
+      <div
+        id={this._uid}
+        class="alp-input-wrap alp-input-wrap--md alp-dp-wrap"
+        onkeydown={(e: KeyboardEvent) => this._handleKey(e)}
+      >
+        <div class="alp-dp-field">
+          <input
+            type="text"
+            class={`alp-input alp-input--md${hasError ? ' alp-input--error' : ''}`}
+            placeholder={this.props.placeholder || 'Select…'}
+            disabled={!!this.props.disabled}
+            readonly={!!this.props.readOnly}
+            required={!!this.props.required}
+            value={this.inputText}
+            onfocus={() => this._open()}
+            onclick={() => this._open()}
+            oninput={(e: Event) => { this.inputText = (e.target as HTMLInputElement).value; }}
+            onblur={() => this._commitTyped(this.inputText, false)}
+            onkeydown={(e: KeyboardEvent) => {
+              // stopPropagation: without this, the same Enter keydown also
+              // bubbles to the wrap-level grid handler (_handleKey), which
+              // would then commit whatever cell keyboard-navigation last
+              // focused -- stale state a user who just typed a value never
+              // intended. Typed-Enter always wins over grid-Enter while the
+              // text input itself has focus (real DOM focus never actually
+              // leaves the input during arrow-key grid navigation).
+              if (e.key === 'Enter') { e.stopPropagation(); this._commitTyped(this.inputText, false); }
+            }}
+            aria-haspopup="dialog"
+            aria-expanded={this.open}
+            aria-controls={popupId}
+          />
+          {this._isRange() && (
+            <>
+              <span class="alp-dp-range-sep">→</span>
+              <input
+                type="text"
+                class={`alp-input alp-input--md${hasError ? ' alp-input--error' : ''}`}
+                placeholder="End…"
+                disabled={!!this.props.disabled}
+                readonly={!!this.props.readOnly}
+                value={this.inputTextEnd}
+                onfocus={() => this._open()}
+                onclick={() => this._open()}
+                oninput={(e: Event) => { this.inputTextEnd = (e.target as HTMLInputElement).value; }}
+                onblur={() => this._commitTyped(this.inputTextEnd, true)}
+                onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') { e.stopPropagation(); this._commitTyped(this.inputTextEnd, true); } }}
+                aria-haspopup="dialog"
+                aria-expanded={this.open}
+                aria-controls={popupId}
+              />
+            </>
+          )}
+          <Icon name={iconName} size={14} class="alp-dp-icon" />
+        </div>
+        {hasError ? <span class="alp-field-error">{this.props.error}</span> : null}
+        {this.open && this._renderPopup()}
+      </div>
+    );
+  }
+}

@@ -1,0 +1,86 @@
+import { SwissComponent } from '@swissjs/core';
+
+/**
+ * OnboardingPrompt — the embedded half of Alpine Onboarding (registry/fable/
+ * onboarding/DESIGN.md): a contextual card a module drops directly next to
+ * the feature a step is about, instead of making the user find it via the
+ * global "Getting Started" widget (OnboardingProgressBar) alone. Reads the
+ * SAME /api/v1/onboarding/progress endpoint that widget does, scoped to
+ * `stepId`'s owning module -- there is exactly one source of "is this step
+ * done", so a card embedded here and the global widget's list entry can
+ * never disagree, and this card disappears the moment the real underlying
+ * condition becomes true, with no separate dismiss state to manage.
+ *
+ * `onAction`, when given, is called instead of navigating -- for the common
+ * case where the host page IS the step's own `location` and already knows
+ * how to trigger the actual action (e.g. open its own "Invite" modal)
+ * without a route change. Without it, clicking navigates to the step's
+ * declared `location`, same as the global widget's panel entries.
+ */
+component OnboardingPrompt {
+  props = {
+    stepId:   String,
+    onAction: (() => {}) as (() => void) | undefined,
+  };
+
+  state { let status: string = 'loading'; }
+  state { let step: Record<string, unknown> | null = null; }
+
+  async mounted() {
+    await this._load();
+  }
+
+  async _load() {
+    try {
+      const moduleId = (this.props.stepId || '').split('.')[0];
+      const res = await fetch(`/api/v1/onboarding/progress?module_id=${encodeURIComponent(moduleId)}`, { credentials: 'include' });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      const steps = (data.steps || []) as Record<string, unknown>[];
+      this.step = steps.find((s) => s.step_id === this.props.stepId) || null;
+      this.status = 'success';
+    } catch (_) {
+      this.status = 'error';
+    }
+    // Same live-confirmed retry workaround as ReportsHub/OnboardingProgressBar
+    // (registry/fable/loading-state/) for the loading->content transition.
+    this._forceCommit();
+  }
+
+  _forceCommit(attempt: number = 0) {
+    this.scheduleUpdate?.();
+    if (attempt >= 5) return;
+    requestAnimationFrame(() => this._forceCommit(attempt + 1));
+  }
+
+  _act() {
+    if (typeof this.props.onAction === 'function') {
+      this.props.onAction();
+      return;
+    }
+    const location = this.step?.location as string;
+    if (!location) return;
+    const nav = (window as unknown as { __skltn?: { navigate?: (path: string) => void } }).__skltn;
+    if (nav?.navigate) nav.navigate(location);
+    else window.location.href = location;
+  }
+
+  render() {
+    // Same always-render-the-same-root pattern as OnboardingProgressBar
+    // (registry/fable/loading-state/): toggle visibility via style, never
+    // swap in a structurally different subtree.
+    const visible = this.status === 'success' && !!this.step && this.step.complete === false;
+
+    return (
+      <div class="alp-onboard-prompt" style={visible ? '' : 'display:none;'}>
+        <div class="alp-onboard-prompt-text">
+          <div class="alp-onboard-prompt-title">{this.step?.title as string}</div>
+          <div class="alp-onboard-prompt-desc">{this.step?.description as string}</div>
+        </div>
+        <button type="button" class="alp-btn alp-btn--primary alp-btn--sm" onclick={() => this._act()}>
+          Get started
+        </button>
+      </div>
+    );
+  }
+}
