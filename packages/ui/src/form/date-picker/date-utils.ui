@@ -1,0 +1,218 @@
+/*
+  DatePicker pure-logic layer — parsing, formatting, validation, grid math,
+  locale/timezone helpers. No JSX/component state here so DatePicker.uix,
+  CalendarGrid.uix and TimeSelect.uix can all share one tested source of
+  truth instead of three drifting copies.
+
+  Timezone note: this is *display* timezone-awareness (formatting a value
+  with an Intl `timeZone` option), not full tz-aware date arithmetic --
+  calendar-day math (addDays, startOfMonth, isSameDay, etc.) operates on the
+  browser's local calendar, matching every other date-handling call site on
+  the platform today. A value is stored/emitted as a plain ISO date
+  ("YYYY-MM-DD") or ISO datetime string, never a tz-shifted instant. Genuine
+  cross-timezone instant math (e.g. "9am Nairobi in the viewer's local time")
+  is out of scope for V1 and would need a real tz library, not this file.
+*/
+
+export const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+export const DAYS_MIN   = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+export const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+export const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function getL10n(): Record<string, unknown> | null {
+  if (typeof window === 'undefined') return null;
+  return (window as unknown as { __skltn?: { registry?: { get: (k: string) => unknown } } }).__skltn?.registry?.get('l10n') as Record<string, unknown> | null;
+}
+
+export function getLocale(): string {
+  const l10n = getL10n() as { getLocale?: () => string } | null;
+  return l10n?.getLocale?.() || (typeof navigator !== 'undefined' ? navigator.language : 'en-US');
+}
+
+export function getBrowserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return 'UTC';
+  }
+}
+
+export function localizedMonths(locale: string): string[] {
+  try {
+    const fmt = new Intl.DateTimeFormat(locale, { month: 'long' });
+    return Array.from({ length: 12 }, (_, i) => fmt.format(new Date(2024, i, 1)));
+  } catch {
+    return MONTHS;
+  }
+}
+
+export function localizedWeekdays(locale: string, style: 'short' | 'narrow' = 'short'): string[] {
+  try {
+    const fmt = new Intl.DateTimeFormat(locale, { weekday: style });
+    // 2024-01-07 is a Sunday -- fixed anchor so the loop always starts on Sunday.
+    return Array.from({ length: 7 }, (_, i) => fmt.format(new Date(2024, 0, 7 + i)));
+  } catch {
+    return style === 'narrow' ? DAYS_MIN : DAYS_SHORT;
+  }
+}
+
+export function dateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function isSameDay(a: Date | null, b: Date | null): boolean {
+  if (!a || !b) return false;
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+export function isBefore(a: Date, b: Date): boolean { return dateKey(a) < dateKey(b); }
+export function isAfter(a: Date, b: Date): boolean { return dateKey(a) > dateKey(b); }
+
+export function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
+export function addMonths(d: Date, n: number): Date { const r = new Date(d); r.setMonth(r.getMonth() + n); return r; }
+export function addYears(d: Date, n: number): Date { const r = new Date(d); r.setFullYear(r.getFullYear() + n); return r; }
+
+export function startOfDay(d: Date): Date { const r = new Date(d); r.setHours(0, 0, 0, 0); return r; }
+export function startOfWeek(d: Date): Date { const r = startOfDay(d); r.setDate(r.getDate() - r.getDay()); return r; }
+export function startOfMonth(d: Date): Date { return new Date(d.getFullYear(), d.getMonth(), 1); }
+export function endOfMonth(d: Date): Date { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+export function startOfQuarter(d: Date): Date { return new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1); }
+export function startOfYear(d: Date): Date { return new Date(d.getFullYear(), 0, 1); }
+export function quarterOf(d: Date): number { return Math.floor(d.getMonth() / 3) + 1; }
+
+// ISO-8601 week number (Thursday-anchored), matches the "Week 29" style the
+// spec calls out for manufacturing/planning use cases.
+export function weekNumber(d: Date): number {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+// Six full weeks (42 days), leading/trailing days from adjacent months
+// included -- same shape as CalendarView.uix's month grid (views/CalendarView.uix)
+// so a future consolidation isn't a rewrite, just a dedupe.
+export function monthGrid(anchor: Date): Date[][] {
+  const start = startOfMonth(anchor);
+  start.setDate(start.getDate() - start.getDay());
+  const weeks: Date[][] = [];
+  let cur = new Date(start);
+  for (let w = 0; w < 6; w++) {
+    const week: Date[] = [];
+    for (let d = 0; d < 7; d++) { week.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+    weeks.push(week);
+  }
+  return weeks;
+}
+
+export interface DateConstraints {
+  minDate?: Date | null;
+  maxDate?: Date | null;
+  disabledDates?: string[];        // dateKey() strings
+  disabledWeekdays?: number[];     // 0=Sun..6=Sat
+  futureOnly?: boolean;
+  pastOnly?: boolean;
+  businessDaysOnly?: boolean;
+  isDateDisabled?: (d: Date) => boolean; // custom callback, wins last
+}
+
+export function isDateAllowed(d: Date, c: DateConstraints): boolean {
+  const today = startOfDay(new Date());
+  const day = startOfDay(d);
+  if (c.minDate && isBefore(day, startOfDay(c.minDate))) return false;
+  if (c.maxDate && isAfter(day, startOfDay(c.maxDate))) return false;
+  if (c.futureOnly && isBefore(day, today)) return false;
+  if (c.pastOnly && isAfter(day, today)) return false;
+  if (c.businessDaysOnly && (day.getDay() === 0 || day.getDay() === 6)) return false;
+  if (c.disabledWeekdays?.includes(day.getDay())) return false;
+  if (c.disabledDates?.includes(dateKey(day))) return false;
+  if (c.isDateDisabled?.(day)) return false;
+  return true;
+}
+
+// Accepts common separators/orders (DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD,
+// MM/DD/YYYY) and normalizes to a Date, or null if unparseable. Deliberately
+// permissive -- the calendar is always the authoritative fallback, typing is
+// a convenience path, not the only path.
+export function parseTypedDate(input: string): Date | null {
+  const s = input.trim();
+  if (!s) return null;
+
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return _mk(+iso[1], +iso[2], +iso[3]);
+
+  const slashOrDash = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (slashOrDash) {
+    const a = +slashOrDash[1], b = +slashOrDash[2], y = +slashOrDash[3];
+    // Unambiguous cases first (one side can't be a month); otherwise DD/MM
+    // (matches the examples in the spec: "15/07/2026").
+    if (a > 12) return _mk(y, b, a);
+    if (b > 12) return _mk(y, a, b);
+    return _mk(y, b, a);
+  }
+
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function _mk(y: number, m: number, d: number): Date | null {
+  const dt = new Date(y, m - 1, d);
+  return (dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d) ? dt : null;
+}
+
+export function formatValue(d: Date, mode: string, locale: string, opts: { hour12?: boolean; showSeconds?: boolean } = {}): string {
+  if (!d || isNaN(d.getTime())) return '';
+  const dateOpts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+  switch (mode) {
+    case 'time':
+      return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', second: opts.showSeconds ? '2-digit' : undefined, hour12: !!opts.hour12 });
+    case 'datetime':
+    case 'datetime_range':
+      return `${d.toLocaleDateString(locale, dateOpts)} ${d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12: !!opts.hour12 })}`;
+    case 'month':
+      return d.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+    case 'quarter':
+      return `Q${quarterOf(d)} ${d.getFullYear()}`;
+    case 'year':
+      return String(d.getFullYear());
+    default:
+      return d.toLocaleDateString(locale, dateOpts);
+  }
+}
+
+export interface Shortcut { label: string; range: [Date, Date]; }
+
+export function getShortcuts(): Shortcut[] {
+  const today = startOfDay(new Date());
+  const yesterday = addDays(today, -1);
+  const tomorrow = addDays(today, 1);
+  const thisWeekStart = startOfWeek(today);
+  const lastWeekStart = addDays(thisWeekStart, -7);
+  const nextWeekStart = addDays(thisWeekStart, 7);
+  const thisMonthStart = startOfMonth(today);
+  const lastMonthStart = addMonths(thisMonthStart, -1);
+  const nextMonthStart = addMonths(thisMonthStart, 1);
+  const thisQuarterStart = startOfQuarter(today);
+  const thisYearStart = startOfYear(today);
+
+  return [
+    { label: 'Today', range: [today, today] },
+    { label: 'Yesterday', range: [yesterday, yesterday] },
+    { label: 'Tomorrow', range: [tomorrow, tomorrow] },
+    { label: 'This Week', range: [thisWeekStart, addDays(thisWeekStart, 6)] },
+    { label: 'Last Week', range: [lastWeekStart, addDays(lastWeekStart, 6)] },
+    { label: 'Next Week', range: [nextWeekStart, addDays(nextWeekStart, 6)] },
+    { label: 'This Month', range: [thisMonthStart, endOfMonth(today)] },
+    { label: 'Last Month', range: [lastMonthStart, endOfMonth(lastMonthStart)] },
+    { label: 'Next Month', range: [nextMonthStart, endOfMonth(nextMonthStart)] },
+    { label: 'This Quarter', range: [thisQuarterStart, addDays(addMonths(thisQuarterStart, 3), -1)] },
+    { label: 'This Year', range: [thisYearStart, new Date(today.getFullYear(), 11, 31)] },
+    { label: 'Last 7 Days', range: [addDays(today, -6), today] },
+    { label: 'Last 30 Days', range: [addDays(today, -29), today] },
+    { label: 'Last 90 Days', range: [addDays(today, -89), today] },
+  ];
+}
