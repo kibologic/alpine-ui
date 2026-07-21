@@ -1,2 +1,8 @@
 packages:
   - 'packages/*'
+  # Sibling repo linked live (not a published/patched snapshot), matching the
+  # pattern already used by business-alpine/alpine-core/hospitality-alpine for
+  # alpine-shell -- see DRR-001-frontend-test-infrastructure.md.
+  - '../swiss-lib/plugins/vite'
+  - '../swiss-lib/runtime'
+  - '../swiss-lib/compiler'

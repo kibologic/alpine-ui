@@ -17,5 +17,16 @@
   },
   "dependencies": {
     "lucide-static": "^1.24.0"
+  },
+  "devDependencies": {
+    "@swissjs/core": "workspace:*",
+    "@swissjs/vite-plugin": "workspace:*",
+    "jsdom": "^25.0.1",
+    "vite": "^5.4.19",
+    "vitest": "^3.2.6"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
   }
 }
