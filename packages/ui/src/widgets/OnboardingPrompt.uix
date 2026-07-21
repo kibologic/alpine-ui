@@ -60,9 +60,11 @@ component OnboardingPrompt {
     }
     const location = this.step?.location as string;
     if (!location) return;
+    // Shell routing only -- see OnboardingProgressBar._goToStep for why
+    // there is deliberately no window.location.href fallback.
     const nav = (window as unknown as { __skltn?: { navigate?: (path: string) => void } }).__skltn;
     if (nav?.navigate) nav.navigate(location);
-    else window.location.href = location;
+    else console.warn('[OnboardingPrompt] shell not ready, cannot navigate to', location);
   }
 
   render() {
