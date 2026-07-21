@@ -1,5 +1,14 @@
 # Claude Code — alpine-ui (shared component library)
 
+> 🧭 **Article 18 — SwissJS evolves from its own architecture, never by imitation.** Design
+> decisions originate from the SwissJS architecture and concrete Alpine requirements. **Never
+> introduce an API, abstraction or capability because another framework has it. Feature parity with
+> any external ecosystem is explicitly not a goal**, and resemblance to one is not evidence of
+> correctness. Reason from this ecosystem's own primitives — the compiler, `.ui`/`.uix` files, the
+> integrated runtime, the Alpine-first architecture. Those are the differentiator; imitation would
+> discard the reason SwissJS exists. If a capability is required, we build it; if not, we don't.
+
+
 **Highest fan-out code on the platform, and historically the least safeguarded** — every vertical
 depends on these components, and they have had **zero tests** (`FABLE-FRONT-001`). Article 17 lands
 hardest here.
