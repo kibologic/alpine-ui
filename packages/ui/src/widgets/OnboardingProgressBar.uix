@@ -92,9 +92,13 @@ component OnboardingProgressBar {
     this.scheduleUpdate?.();
     const location = step.location as string;
     if (!location) return;
+    // Shell routing only -- no window.location.href fallback. A full-page
+    // navigation here would discard the in-memory workspace/tab state the
+    // shell owns; __skltn.navigate not being present means the shell hasn't
+    // booted yet, not that a plain URL nav is an acceptable substitute.
     const nav = (window as unknown as { __skltn?: { navigate?: (path: string) => void } }).__skltn;
     if (nav?.navigate) nav.navigate(location);
-    else window.location.href = location;
+    else console.warn('[OnboardingProgressBar] shell not ready, cannot navigate to', location);
   }
 
   render() {
