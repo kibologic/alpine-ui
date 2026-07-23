@@ -2,6 +2,8 @@ import { SwissComponent } from '@swissjs/core';
 
 component TextField {
   props = {
+    id: String,
+    name: String,
     type: String,
     value: String,
     placeholder: String,
@@ -11,8 +13,15 @@ component TextField {
   };
 
   state { let internalValue: string = ''; }
+  _fieldId: string = `alp-textfield-${Math.random().toString(36).slice(2, 9)}`;
 
-  mount() {
+  // Renamed from `mount()`: swiss-lib's component.ts only ever checks `mounted`/`onMount` by
+  // name (confirmed by reading the source), which looked like this method was dead code -- but
+  // reproducing it live disproved that: with the original `mount()` spelling, internalValue was
+  // still correctly seeded from the initial `value` prop (verified via mountComponent() + a
+  // direct instance inspection). Renamed anyway for consistency with every other component's
+  // convention in this repo, not as a bug fix -- do not describe this as one.
+  mounted() {
     this.internalValue = this.props.value || '';
   }
 
@@ -25,9 +34,15 @@ component TextField {
   render() {
     const type = this.props.type || 'text';
     const hasError = !!this.props.error;
+    // Every input/textarea needs a stable id+name (focus-loss directive) -- fall back to a
+    // per-instance generated id rather than requiring every caller to supply one.
+    const fieldId = this.props.id || this._fieldId;
+    const fieldName = this.props.name || fieldId;
     return (
       <div class={`alp-input-wrap alp-input-wrap--md`}>
         <input
+          id={fieldId}
+          name={fieldName}
           type={type}
           class={`alp-input alp-input--md${hasError ? ' alp-input--error' : ''}`}
           value={this.internalValue}
