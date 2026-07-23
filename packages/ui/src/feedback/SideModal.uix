@@ -1,5 +1,14 @@
 import { SwissComponent } from '@swissjs/core';
 
+// UI-MODAL-001: tracks which SideModal instances are currently open, in open-order, so Escape
+// closes only the TOPMOST drawer. Pages routinely mount 2-3 SideModal instances at once
+// (StockTransfersPage, InventoryCategoriesPage, OutletsPage) -- without this, every open
+// instance's keydown listener independently sees its own `open === true` and closes itself, so
+// one Escape press closed all of them at once. A plain array, not a function declaration or a
+// Set<T> generic, kept at module scope deliberately: it must be shared across every mounted
+// instance, not per-instance state.
+const openStack: unknown[] = [];
+
 component SideModal {
   props = {
     open: Boolean,
@@ -14,10 +23,18 @@ component SideModal {
     renderBody: Function as () => any,
   };
 
+  _lastFocused: HTMLElement | null = null;
+
+  // Unique per instance -- mirrors Modal.uix's _titleId. A hardcoded id here would duplicate
+  // across every mounted SideModal on the page (several are routinely mounted as always-rendered
+  // siblings), which is invalid HTML and breaks aria-labelledby association for all but one.
+  _titleId: string = `alp-sidemodal-title-${Math.random().toString(36).slice(2)}`;
+
   _onKeydown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && this.props.open) {
-      this.props.onclose?.();
-    }
+    if (e.key !== 'Escape' || !this.props.open) return;
+    // Only the topmost (most recently opened) instance closes -- see openStack above.
+    if (openStack[openStack.length - 1] !== this) return;
+    this.props.onclose?.();
   };
 
   mounted() {
@@ -30,9 +47,46 @@ component SideModal {
     if (typeof window !== 'undefined') {
       window.removeEventListener('keydown', this._onKeydown);
     }
+    this._removeFromStack();
+    this._restoreFocus();
+  }
+
+  _removeFromStack() {
+    const idx = openStack.indexOf(this);
+    if (idx !== -1) openStack.splice(idx, 1);
+  }
+
+  // Basic focus management, mirroring Modal.uix: remember what was focused before the drawer
+  // opened and restore it on close. Not a full focus trap -- Modal.uix doesn't have one either
+  // despite asserting role="dialog" aria-modal="true"; matching its actual level of hardening,
+  // not inventing a stronger contract than the primitive it's meant to reach parity with.
+  _captureFocus() {
+    if (typeof document !== 'undefined' && !this._lastFocused) {
+      this._lastFocused = document.activeElement as HTMLElement;
+    }
+  }
+
+  _restoreFocus() {
+    if (this._lastFocused && typeof this._lastFocused.focus === 'function') {
+      this._lastFocused.focus();
+    }
+    this._lastFocused = null;
   }
 
   render() {
+    // Always mounted, never `return null` when closed -- this file already had that right
+    // (incidental, not commented); keeping it, not touching it, per this task's never_touch.
+    if (!this.props.open) {
+      this._removeFromStack();
+      this._restoreFocus();
+    } else {
+      this._captureFocus();
+      if (openStack[openStack.length - 1] !== this) {
+        this._removeFromStack(); // in case it's already present out of order
+        openStack.push(this);
+      }
+    }
+
     const size = this.props.size || 'md';
 
     return (
@@ -42,10 +96,15 @@ component SideModal {
           style={this.props.open ? '' : 'display:none;'}
           onclick={() => this.props.onclose?.()}
         ></div>
-        <div class={`alp-side-modal alp-side-modal--${size} ${this.props.open ? 'alp-side-modal--open' : ''}`}>
+        <div
+          class={`alp-side-modal alp-side-modal--${size} ${this.props.open ? 'alp-side-modal--open' : ''}`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={this._titleId}
+        >
           <div class="alp-side-modal-header">
             <div class="alp-side-modal-header-title">
-              <span class="alp-side-modal-title">{this.props.title}</span>
+              <span class="alp-side-modal-title" id={this._titleId}>{this.props.title}</span>
               {this.props.subtitle ? <span class="alp-side-modal-subtitle">{this.props.subtitle}</span> : null}
             </div>
             <div class="alp-side-modal-header-actions">
@@ -59,7 +118,7 @@ component SideModal {
                   {size === 'xl' ? '⊟' : '⊞'}
                 </button>
               ) : null}
-              <button class="alp-btn alp-btn--ghost alp-btn--sm" onclick={() => this.props.onclose?.()}>✕</button>
+              <button class="alp-btn alp-btn--ghost alp-btn--sm" onclick={() => this.props.onclose?.()} aria-label="Close">✕</button>
             </div>
           </div>
           <div class="alp-side-modal-body">

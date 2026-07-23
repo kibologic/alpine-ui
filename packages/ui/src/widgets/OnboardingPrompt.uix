@@ -60,9 +60,15 @@ component OnboardingPrompt {
     }
     const location = this.step?.location as string;
     if (!location) return;
-    const nav = (window as unknown as { __skltn?: { navigate?: (path: string) => void } }).__skltn;
-    if (nav?.navigate) nav.navigate(location);
-    else window.location.href = location;
+    // Intent-based shell routing -- see OnboardingProgressBar._goToStep for
+    // the full rationale (same fix, same file layout, duplicated rather
+    // than shared since UIX disallows module-level function declarations).
+    const nav = (window as unknown as { __skltn?: { navigate?: (intent: unknown) => void } }).__skltn;
+    if (!nav?.navigate) { console.warn('[OnboardingPrompt] shell not ready, cannot navigate to', location); return; }
+    const parts = location.replace(/^\//, '').split('/');
+    const moduleId = parts[0] || '';
+    const sectionId = parts[1] || '';
+    nav.navigate({ intent: 'focus', view: `${moduleId}/${sectionId}`, meta: { moduleId, sectionId } });
   }
 
   render() {

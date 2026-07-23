@@ -20,3 +20,34 @@ jobs:
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r lint 2>/dev/null || true
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: alpine-ui
+      # pnpm-workspace.yaml sibling-links swiss-lib/{plugins/vite,runtime,compiler}
+      # (see DRR-001-frontend-test-infrastructure.md) -- @swissjs/vite-plugin has
+      # never been published to npm, so this checkout is what makes `pnpm install`
+      # resolvable in an isolated single-repo CI run at all, not a convenience.
+      # Every other repo using the same live-sibling-link pattern for alpine-shell/
+      # alpine-ui (business-alpine, alpine-core, hospitality-alpine) has this same
+      # gap in its own CI today -- discovered here, not fixed there in this pass.
+      - uses: actions/checkout@v4
+        with:
+          repository: kibologic/swiss-lib
+          ref: development
+          path: swiss-lib
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: alpine-ui/pnpm-lock.yaml
+      - working-directory: alpine-ui
+        run: pnpm install --frozen-lockfile
+      - working-directory: alpine-ui/packages/ui
+        run: pnpm test

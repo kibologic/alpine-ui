@@ -92,9 +92,33 @@ component OnboardingProgressBar {
     this.scheduleUpdate?.();
     const location = step.location as string;
     if (!location) return;
-    const nav = (window as unknown as { __skltn?: { navigate?: (path: string) => void } }).__skltn;
-    if (nav?.navigate) nav.navigate(location);
-    else window.location.href = location;
+    // Intent-based shell routing -- same {intent:'focus', view, meta} shape
+    // shellNavigate() builds in erp-core (find-or-create the target
+    // module's tab and activate it). Built locally rather than importing
+    // shellNavigate: @alpine/ui takes no runtime dependency on
+    // @alpine/erp-core today (only type-only imports elsewhere in this
+    // package), and every OnboardingStep.location across every module
+    // manifest is already a two-segment "/moduleId/sectionId" path, so no
+    // per-module SECTION_DEFAULTS table (which lives in erp-core, business
+    // knowledge this package shouldn't need) is required here.
+    //
+    // Not routed through window.__skltn.navigate(location) (a bare string):
+    // that hits NavigationService._legacyNavigate, which only does
+    // history.pushState -- it never calls ws.create/ws.push, so it changes
+    // the URL without switching or creating a workspace tab. Live-confirmed
+    // this session: clicking a step changed the address bar but left the
+    // previous tab's content on screen. That's a framework-level gap in
+    // alpine-shell's legacy compat path, not something to route around
+    // here -- and nothing else on the platform still calls it as a bare
+    // string (every other cross-module link already uses shellNavigate()),
+    // so this fix brings onboarding in line with the one actual convention
+    // rather than patching the unused legacy path.
+    const nav = (window as unknown as { __skltn?: { navigate?: (intent: unknown) => void } }).__skltn;
+    if (!nav?.navigate) { console.warn('[OnboardingProgressBar] shell not ready, cannot navigate to', location); return; }
+    const parts = location.replace(/^\//, '').split('/');
+    const moduleId = parts[0] || '';
+    const sectionId = parts[1] || '';
+    nav.navigate({ intent: 'focus', view: `${moduleId}/${sectionId}`, meta: { moduleId, sectionId } });
   }
 
   render() {
