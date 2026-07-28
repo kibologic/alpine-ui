@@ -2,6 +2,8 @@ import { SwissComponent } from '@swissjs/core';
 
 component SelectField {
   props = {
+    id: String,
+    name: String,
     options: Array as () => Array<{ value: string; label: string; disabled?: boolean }>,
     value: String,
     placeholder: String,
@@ -10,12 +12,20 @@ component SelectField {
     onchange: Function as (value: string) => void,
   };
 
+  _fieldId: string = `alp-selectfield-${Math.random().toString(36).slice(2, 9)}`;
+
   render() {
     const options = Array.isArray(this.props.options) ? this.props.options : [];
     const hasError = !!this.props.error;
+    // Every input/select needs a stable id+name (focus-loss directive) -- fall back to a
+    // per-instance generated id rather than requiring every caller to supply one.
+    const fieldId = this.props.id || this._fieldId;
+    const fieldName = this.props.name || fieldId;
     return (
       <div class={`alp-input-wrap alp-input-wrap--md`}>
         <select
+          id={fieldId}
+          name={fieldName}
           class={`alp-input alp-input--md${hasError ? ' alp-input--error' : ''}`}
           disabled={!!this.props.disabled}
           onchange={(e: Event) => {
