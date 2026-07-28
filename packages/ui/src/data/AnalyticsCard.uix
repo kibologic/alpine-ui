@@ -3,6 +3,9 @@ import { SwissComponent } from '@swissjs/core';
 // state) split out to keep this file under the 700-line limit -- see
 // chart-options.ui's own docstring for the split rationale.
 import { PALETTES, cssVar, hasEnoughData, summaryText, buildChartOption } from './chart-options.ui';
+// FRONT-SHELL-004: script load, DOM-disappearance watchdog and instance
+// staleness/retry logic now live in chart-host.ui, shared with Chart.uix.
+import { ensureEchartsLoaded, startChartWatchdog, syncChartInstance, disposeIdleChart, disposeChart } from './chart-host.ui';
 
 /*
   AnalyticsCard — canonical, reusable analytics widget.
@@ -137,35 +140,14 @@ component AnalyticsCard {
   async mounted() {
     document.addEventListener('click', this._onDocClick);
     window.addEventListener('keydown', this._onKeydown);
-    if (!window.echarts) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = '/echarts.min.js';
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('ECharts CDN failed'));
-          document.head.appendChild(script);
-        });
-      } catch (_) { /* Chart body falls back to "unavailable" empty state */ }
-    }
+    try {
+      await ensureEchartsLoaded();
+    } catch (_) { /* Chart body falls back to "unavailable" empty state */ }
     this._resizeHandler = () => { try { this._chart?.resize(); } catch (_) {} };
     window.addEventListener('resize', this._resizeHandler);
     setTimeout(() => this._syncChart(), 60);
 
-    // ECharts paints its <canvas> into the container via direct DOM
-    // manipulation, invisible to the component's vdom. A re-render for a
-    // reason unrelated to chart data (e.g. opening the options menu) can
-    // wipe that child, or even replace the container element itself with a
-    // fresh (empty) one — and neither the `updated()` lifecycle hook nor a
-    // MutationObserver reliably catches every such re-render in this
-    // framework (a known swiss-lib quirk affecting components that mix
-    // imperative DOM writes with the vdom). A lightweight watchdog poll is
-    // the only mechanism that has proven reliable here: cheap, self-healing
-    // regardless of what triggered the wipe, no per-interaction wiring needed.
-    this._watchdog = setInterval(() => {
-      const el = document.getElementById(this.chartId);
-      if (el && el.children.length === 0 && !this.props.loading) this._syncChart();
-    }, 400);
+    this._watchdog = startChartWatchdog(this.chartId, () => !this.props.loading, () => this._syncChart());
   }
 
   updated() {
@@ -176,8 +158,9 @@ component AnalyticsCard {
     document.removeEventListener('click', this._onDocClick);
     window.removeEventListener('keydown', this._onKeydown);
     if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
-    if (this._watchdog) clearInterval(this._watchdog);
-    if (this._chart) { try { this._chart.dispose(); } catch (_) {} this._chart = null; }
+    if (this._watchdog) this._watchdog();
+    disposeChart(this.chartId);
+    this._chart = null;
   }
 
   // ---- config (controlled with uncontrolled fallback) ----
@@ -205,45 +188,16 @@ component AnalyticsCard {
 
   _syncChart() {
     const cfg = this._cfg();
-    const echarts = (window as any).echarts;
-    if (!echarts) return;
-    const el = document.getElementById(this.chartId);
-    if (!el) return;
     if (this.props.loading || !hasEnoughData(cfg, this.props.data)) {
-      const idle = echarts.getInstanceByDom(el);
-      if (idle) { try { idle.dispose(); } catch (_) {} }
+      disposeIdleChart(this.chartId);
       this._chart = null;
       return;
     }
-    if (!el.clientWidth || !el.clientHeight) {
-      requestAnimationFrame(() => this._syncChart());
-      return;
-    }
-    // The renderer paints a <canvas> into `el` outside the component's vdom.
-    // A re-render can recreate this component instance (resetting `this._chart`
-    // to null) while the framework reuses the same physical DOM node, leaving
-    // a still-registered ECharts instance attached to it — or a re-render for
-    // an unrelated reason can wipe the painted <canvas> child without
-    // disposing the instance. Use echarts' own registry as the source of
-    // truth rather than trusting this component instance's own field.
-    let instance = echarts.getInstanceByDom(el);
-    if (instance && el.children.length === 0) {
-      try { instance.dispose(); } catch (_) {}
-      instance = null;
-    }
-    if (!instance) {
-      instance = echarts.init(el, null, { renderer: 'canvas' });
-    }
-    this._chart = instance;
-    try {
+    this._chart = syncChartInstance(this.chartId, (instance) => {
       const option = buildChartOption(cfg, this.props.data);
-      this._chart.setOption(option, true);
-      this._chart.resize();
-    } catch (err) {
-      console.error('[AnalyticsCard] chart render failed:', err);
-      try { this._chart.dispose(); } catch (_e) {}
-      this._chart = null;
-    }
+      instance.setOption(option, true);
+      instance.resize();
+    }, { renderer: 'canvas' });
   }
 
   // ---- export ----

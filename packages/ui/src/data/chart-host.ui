@@ -1,0 +1,133 @@
+/*
+  chart-host — shared ECharts host abstraction for Chart.uix and AnalyticsCard.uix.
+
+  FRONT-SHELL-004: both components independently duplicated the same three concerns --
+  dynamic script load, retry-on-zero-size, and DOM-disappearance repair -- with
+  AnalyticsCard.uix's version being the more complete/battle-tested one (a watchdog poll;
+  Chart.uix had none). Centralising here means Chart.uix inherits AnalyticsCard's resilience
+  instead of carrying a thinner, independently-drifting copy, and fixes a real duplication bug
+  along the way: each component's own `if (!window.echarts) { <script>... }` check was NOT
+  deduped across instances -- two chart widgets mounting close together (a common case: an
+  analytics page with several cards) could each inject their own <script src="/echarts.min.js">
+  tag before the first one's `onload` fired. ensureEchartsLoaded() below memoises the in-flight
+  load so only the first caller ever creates the tag.
+
+  ECharts paints a <canvas> into its container via direct DOM manipulation, invisible to the
+  component's vdom. A re-render for a reason unrelated to chart data can wipe that child, or
+  even replace the container element itself with a fresh (empty) one -- neither `updated()` nor
+  a MutationObserver reliably catches every such case in this framework (a known swiss-lib
+  integration quirk when a component mixes imperative DOM writes with the vdom; see
+  AnalyticsCard.uix's prior inline comment, preserved in startChartWatchdog's docstring below).
+  A lightweight watchdog poll is the mechanism proven reliable here.
+*/
+
+// ── Script loading (deduped across all chart instances) ──────────────────────
+
+let _echartsLoadPromise: Promise<void> | null = null;
+
+export function ensureEchartsLoaded(scriptSrc = '/echarts.min.js'): Promise<void> {
+  if (typeof window !== 'undefined' && (window as any).echarts) return Promise.resolve();
+  if (_echartsLoadPromise) return _echartsLoadPromise;
+  _echartsLoadPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = scriptSrc;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      // Let a later mount retry from scratch rather than caching a permanent failure --
+      // a transient network blip shouldn't leave every chart on the page stuck "unavailable".
+      _echartsLoadPromise = null;
+      reject(new Error('ECharts CDN failed'));
+    };
+    document.head.appendChild(script);
+  });
+  return _echartsLoadPromise;
+}
+
+// ── DOM-disappearance watchdog ─────────────────────────────────────────────────
+
+export function startChartWatchdog(
+  elementId: string,
+  shouldRepair: () => boolean,
+  repair: () => void,
+  intervalMs = 400,
+): () => void {
+  const handle = setInterval(() => {
+    const el = document.getElementById(elementId);
+    if (el && el.children.length === 0 && shouldRepair()) repair();
+  }, intervalMs);
+  return () => clearInterval(handle);
+}
+
+// ── Instance staleness + zero-size retry + apply option ────────────────────────
+
+export interface SyncChartOptions {
+  theme?: string | null;
+  renderer?: 'canvas' | 'svg';
+}
+
+/**
+ * (Re)binds an ECharts instance to `elementId` and hands it to `applyOption` to configure.
+ * Returns the live instance, or null if ECharts isn't loaded yet, the element isn't mounted,
+ * the element has zero layout size (a retry is scheduled via requestAnimationFrame instead),
+ * or `applyOption` threw (the instance is disposed rather than left in a broken state).
+ */
+export function syncChartInstance(
+  elementId: string,
+  applyOption: (instance: any) => void,
+  opts: SyncChartOptions = {},
+): any | null {
+  const echarts = (window as any).echarts;
+  if (!echarts) return null;
+  const el = document.getElementById(elementId);
+  if (!el) return null;
+
+  if (!el.clientWidth || !el.clientHeight) {
+    requestAnimationFrame(() => syncChartInstance(elementId, applyOption, opts));
+    return null;
+  }
+
+  // A re-render can recreate the owning component instance (resetting its own `_chart`
+  // field to null) while the framework reuses the same physical DOM node, leaving a
+  // still-registered ECharts instance attached to it -- or a re-render for an unrelated
+  // reason can wipe the painted <canvas> child without disposing the instance. Use
+  // echarts' own registry as the source of truth rather than trusting a component field.
+  let instance = echarts.getInstanceByDom(el);
+  if (instance && el.children.length === 0) {
+    try { instance.dispose(); } catch (_) { /* already gone */ }
+    instance = null;
+  }
+  if (!instance) {
+    instance = echarts.init(el, opts.theme ?? null, opts.renderer ? { renderer: opts.renderer } : undefined);
+  }
+
+  try {
+    applyOption(instance);
+  } catch (err) {
+    console.error('[chart-host] chart render failed:', err);
+    try { instance.dispose(); } catch (_e) { /* already gone */ }
+    return null;
+  }
+  return instance;
+}
+
+/** Disposes any ECharts instance registered against `elementId`, if one exists. Used when a
+ * chart transitions to a state (loading, no data) where it shouldn't currently be rendered. */
+export function disposeIdleChart(elementId: string): void {
+  const echarts = (window as any).echarts;
+  if (!echarts) return;
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const idle = echarts.getInstanceByDom(el);
+  if (idle) { try { idle.dispose(); } catch (_) { /* already gone */ } }
+}
+
+/** Disposes the ECharts instance registered against `elementId`, if any -- for unmount cleanup
+ * when the caller only has the element id (not a component-held instance reference). */
+export function disposeChart(elementId: string): void {
+  const echarts = (window as any).echarts;
+  if (!echarts) return;
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const instance = echarts.getInstanceByDom(el);
+  if (instance) { try { instance.dispose(); } catch (_) { /* already gone */ } }
+}
