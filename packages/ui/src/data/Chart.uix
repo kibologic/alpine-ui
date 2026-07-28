@@ -1,4 +1,10 @@
 import { SwissComponent } from '@swissjs/core';
+// FRONT-SHELL-004: script load, DOM-disappearance watchdog and instance
+// staleness/retry logic now live in chart-host.ui, shared with AnalyticsCard.uix
+// -- this component previously had none of the watchdog/retry resilience
+// AnalyticsCard already carried, despite painting the same kind of
+// vdom-invisible <canvas>.
+import { ensureEchartsLoaded, startChartWatchdog, syncChartInstance, disposeChart } from './chart-host.ui';
 
 component Chart {
   props = {
@@ -13,45 +19,39 @@ component Chart {
 
   _chart: any = null;
   _resizeHandler: any = null;
+  _watchdog: any = null;
 
   async mounted() {
-    if (!window.echarts) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = '/echarts.min.js';
-          script.onload = () => resolve();
-          script.onerror = () => reject(new Error('ECharts CDN failed'));
-          document.head.appendChild(script);
-        });
-      } catch (_) {
-        this.failed = true;
-        return;
-      }
+    try {
+      await ensureEchartsLoaded();
+    } catch (_) {
+      this.failed = true;
+      return;
     }
     this.initChart();
+    this._resizeHandler = () => { try { this._chart?.resize(); } catch (_) {} };
+    window.addEventListener('resize', this._resizeHandler);
+    this._watchdog = startChartWatchdog(this.chartId, () => !this.failed && !!this.props.data, () => this.initChart());
   }
 
   initChart() {
-    if (!window.echarts) return;
-    const el = document.getElementById(this.chartId);
-    if (!el) return;
     const theme = this.props.theme || document.documentElement.getAttribute('data-theme') || 'dark';
-    this._chart = window.echarts.init(el, theme);
-    if (this.props.data) this._chart.setOption(this.props.data);
-    this._resizeHandler = () => this._chart?.resize();
-    window.addEventListener('resize', this._resizeHandler);
+    this._chart = syncChartInstance(this.chartId, (instance) => {
+      if (this.props.data) instance.setOption(this.props.data);
+    }, { theme });
   }
 
   unmounted() {
     if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
-    if (this._chart) { this._chart.dispose(); this._chart = null; }
+    if (this._watchdog) this._watchdog();
+    disposeChart(this.chartId);
+    this._chart = null;
   }
 
   async updated() {
     if (this._chart && this.props.data) {
       this._chart.setOption(this.props.data, { notMerge: false });
-    } else if (!this._chart && this.props.data && !this.failed && window.echarts) {
+    } else if (!this._chart && this.props.data && !this.failed) {
       this.initChart();
     }
   }
