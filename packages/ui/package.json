@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@swissjs/core": "workspace:*",
-    "@swissjs/vite-plugin": "workspace:*",
+    "@swissjs/vite-plugin": "^0.2.1",
     "jsdom": "^25.0.1",
     "vite": "^5.4.19",
     "vitest": "^3.2.6"
