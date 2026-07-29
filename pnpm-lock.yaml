@@ -120,8 +120,8 @@ importers:
         specifier: workspace:*
         version: link:../../../swiss-lib/runtime
       '@swissjs/vite-plugin':
-        specifier: workspace:*
-        version: link:../../../swiss-lib/plugins/vite
+        specifier: ^0.2.1
+        version: 0.2.1(vite@5.4.21(@types/node@24.13.3))
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
@@ -937,6 +937,11 @@ packages:
 
   '@swissjs/shared@1.2.1':
     resolution: {integrity: sha512-HgzRAK2/p2ZT1pxrnvZw8b3ULEfUNworslJdgrai7stNahgKr4x4NZt4nFC385rSVkuVG9RAsRXQABKtRmUffQ==}
+
+  '@swissjs/vite-plugin@0.2.1':
+    resolution: {integrity: sha512-CgYRlQrLM8zeehWIyxnfI/KmedeJ26/Tl+Y9uhRl1IO0mF0aQj0REIBcK0NJ4wRb8df6m/v42SeRkFZcrF/57Q==}
+    peerDependencies:
+      vite: '>=5.0.0'
 
   '@tsconfig/node10@1.0.12':
     resolution: {integrity: sha512-UCYBaeFvM11aU2y3YPZ//O5Rhj+xKyzy7mvcIoAjASbigy8mHMryP5cK7dgjlz2hWxh1g5pLw084E0a/wlUSFQ==}
@@ -3462,6 +3467,12 @@ snapshots:
   '@swissjs/security@1.2.1': {}
 
   '@swissjs/shared@1.2.1': {}
+
+  '@swissjs/vite-plugin@0.2.1(vite@5.4.21(@types/node@24.13.3))':
+    dependencies:
+      '@swissjs/compiler': link:../swiss-lib/compiler
+      esbuild: 0.25.12
+      vite: 5.4.21(@types/node@24.13.3)
 
   '@tsconfig/node10@1.0.12': {}
 
